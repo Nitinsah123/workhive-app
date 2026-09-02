@@ -30,6 +30,22 @@ services:
         value: "604800000"
       - key: APP_FRONTEND_URL
         value: https://workhive-frontend-8kkn.onrender.com
+      - key: SPRING_MAIL_HOST
+        value: smtp.gmail.com
+      - key: SPRING_MAIL_PORT
+        value: "587"
+      - key: SPRING_MAIL_AUTH
+        value: "true"
+      - key: SPRING_MAIL_STARTTLS_ENABLE
+        value: "true"
+      - key: SPRING_MAIL_STARTTLS_REQUIRED
+        value: "true"
+      - key: SPRING_MAIL_SSL_TRUST
+        value: smtp.gmail.com
+      - key: SPRING_MAIL_USERNAME
+        sync: false
+      - key: SPRING_MAIL_PASSWORD
+        sync: false
 
   # Frontend Vite React Static Site
   - type: web

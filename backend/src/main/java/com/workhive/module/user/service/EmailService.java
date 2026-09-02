@@ -193,10 +193,41 @@ public class EmailService {
                             props = new java.util.Properties();
                             jmsImpl.setJavaMailProperties(props);
                         }
-                        props.put("mail.smtp.auth", "true");
-                        props.put("mail.smtp.starttls.enable", "true");
-                        props.put("mail.smtp.starttls.required", "true");
-                        props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+                        String envAuth = System.getenv("SPRING_MAIL_AUTH");
+                        if (envAuth == null || envAuth.isBlank()) {
+                            envAuth = System.getProperty("SPRING_MAIL_AUTH");
+                        }
+                        if (envAuth == null || envAuth.isBlank()) {
+                            envAuth = System.getProperty("spring.mail.properties.mail.smtp.auth", "true");
+                        }
+                        props.put("mail.smtp.auth", envAuth.trim());
+
+                        String envStarttls = System.getenv("SPRING_MAIL_STARTTLS_ENABLE");
+                        if (envStarttls == null || envStarttls.isBlank()) {
+                            envStarttls = System.getProperty("SPRING_MAIL_STARTTLS_ENABLE");
+                        }
+                        if (envStarttls == null || envStarttls.isBlank()) {
+                            envStarttls = System.getProperty("spring.mail.properties.mail.smtp.starttls.enable", "true");
+                        }
+                        props.put("mail.smtp.starttls.enable", envStarttls.trim());
+
+                        String envStarttlsReq = System.getenv("SPRING_MAIL_STARTTLS_REQUIRED");
+                        if (envStarttlsReq == null || envStarttlsReq.isBlank()) {
+                            envStarttlsReq = System.getProperty("SPRING_MAIL_STARTTLS_REQUIRED");
+                        }
+                        if (envStarttlsReq == null || envStarttlsReq.isBlank()) {
+                            envStarttlsReq = System.getProperty("spring.mail.properties.mail.smtp.starttls.required", "true");
+                        }
+                        props.put("mail.smtp.starttls.required", envStarttlsReq.trim());
+
+                        String envSslTrust = System.getenv("SPRING_MAIL_SSL_TRUST");
+                        if (envSslTrust == null || envSslTrust.isBlank()) {
+                            envSslTrust = System.getProperty("SPRING_MAIL_SSL_TRUST");
+                        }
+                        if (envSslTrust == null || envSslTrust.isBlank()) {
+                            envSslTrust = System.getProperty("spring.mail.properties.mail.smtp.ssl.trust", "smtp.gmail.com");
+                        }
+                        props.put("mail.smtp.ssl.trust", envSslTrust.trim());
                         props.put("mail.smtp.connectiontimeout", "10000");
                         props.put("mail.smtp.timeout", "10000");
                         props.put("mail.smtp.writetimeout", "10000");
