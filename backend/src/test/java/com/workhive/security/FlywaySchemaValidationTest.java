@@ -51,6 +51,18 @@ class FlywaySchemaValidationTest {
     }
 
     @Test
+    @DisplayName("Verify V6 migration file exists and alters outbox_events payload to TEXT")
+    void testV6MigrationFileContent() throws Exception {
+        try (InputStream is = getClass().getResourceAsStream("/db/migration/V6__outbox_events_payload_to_text.sql")) {
+            assertNotNull(is, "V6__outbox_events_payload_to_text.sql must exist on the classpath");
+            String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+
+            assertTrue(content.contains("ALTER TABLE outbox_events ALTER COLUMN payload TYPE TEXT"),
+                    "Must alter payload column to TEXT");
+        }
+    }
+
+    @Test
     @DisplayName("Verify V4 migration executes on invitations table and satisfies Invitation entity fields")
     void testV4MigrationExecutionAndBackfill() throws Exception {
         String dbName = "invitations_v4_test_" + System.currentTimeMillis();
