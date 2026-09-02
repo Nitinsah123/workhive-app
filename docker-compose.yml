@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: workhive-postgres
+    environment:
+      POSTGRES_DB: workhive
+      POSTGRES_USER: workhive
+      POSTGRES_PASSWORD: workhive_secret_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workhive -d workhive"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - workhive-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: workhive-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - workhive-net
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: workhive-minio
+    environment:
+      MINIO_ROOT_USER: workhive_minio
+      MINIO_ROOT_PASSWORD: workhive_minio_secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - workhive-net
+    restart: unless-stopped
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: workhive-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - workhive-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: workhive-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workhive
+      SPRING_DATASOURCE_USERNAME: workhive
+      SPRING_DATASOURCE_PASSWORD: workhive_secret_2024
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: workhive_minio
+      MINIO_SECRET_KEY: workhive_minio_secret
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: 1025
+      JWT_SECRET: workhive-jwt-secret-key-2024-production-grade-minimum-256-bits-long
+      JWT_EXPIRATION: 3600000
+      JWT_REFRESH_EXPIRATION: 604800000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - workhive-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: workhive-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - workhive-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  workhive-net:
+    driver: bridge

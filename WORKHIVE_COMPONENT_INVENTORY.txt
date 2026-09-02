@@ -1,0 +1,1252 @@
+================================================================================
+WORKHIVE APPLICATION — COMPLETE TECHNICAL COMPONENT & ARCHITECTURE INVENTORY
+================================================================================
+Generated: 2026-08-27
+Environment: Multi-Tenant Enterprise SaaS Platform
+Operating System: Windows
+Stack: React 18 + TypeScript + Vite + TailwindCSS | Spring Boot 3.2.5 (Java 23) + PostgreSQL/H2 + Flyway + Redis + MinIO + STOMP WebSockets
+
+================================================================================
+EXECUTIVE SUMMARY & FEATURE MATRIX
+================================================================================
+
+| #  | Feature / Component                     | UI  | Frontend | Backend | Database | External API       | Status                |
+|----|-----------------------------------------|-----|----------|---------|----------|--------------------|-----------------------|
+| 1  | Authentication & Workspace Creation     | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 2  | JWT Security & Tenant Context Guard     | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 3  | Organization Dashboard                  | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 4  | Action Center (Leave & Task Reviews)    | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 5  | Projects Management                     | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 6  | Project Workspace (Milestones & Members)| YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 7  | Task Management & Kanban Board          | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 8  | Subtasks & Task Comments                | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 9  | People & Member Management              | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 10 | Employee Invitation & Accept Flow       | YES | YES      | YES     | YES      | SMTP / Gmail API   | REAL / FULLY IMPLEMENTED |
+| 11 | Per-Admin Gmail OAuth Sender            | YES | YES      | YES     | YES      | Google OAuth/Gmail | REAL / FULLY IMPLEMENTED |
+| 12 | Attendance Check-In / Check-Out         | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 13 | Time Tracking & Task Timers             | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 14 | Leave Requests & Balances               | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 15 | Document Management & Storage           | YES | YES      | YES     | YES      | MinIO / Local FS   | REAL / FULLY IMPLEMENTED |
+| 16 | Company Announcements                   | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 17 | Real-Time Notifications & WebSocket     | YES | YES      | YES     | YES      | STOMP WebSocket    | REAL / FULLY IMPLEMENTED |
+| 18 | Unified Work Activity Feed              | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 19 | GitHub Integration (OAuth & Repos)      | YES | YES      | YES     | YES      | GitHub REST API    | PARTIALLY IMPLEMENTED |
+| 20 | GitHub Webhook Ingestion & Sync         | YES | YES      | YES     | YES      | GitHub Webhook     | PARTIALLY IMPLEMENTED |
+| 21 | GitLab Integration                      | YES | YES      | YES     | YES      | NONE (DB Model)    | PARTIALLY IMPLEMENTED |
+| 22 | Jira Software Integration               | YES | YES      | YES     | YES      | NONE (DB Model)    | PARTIALLY IMPLEMENTED |
+| 23 | Slack Integration                       | YES | YES      | YES     | YES      | NONE (DB Model)    | PARTIALLY IMPLEMENTED |
+| 24 | Reports & Analytics                     | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 25 | Export Service (CSV / Excel)            | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 26 | Global Fuzzy Search                     | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 27 | Organization Settings                   | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 28 | User Profile & Password Change          | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 29 | Departments Management                  | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+| 30 | Teams Management                        | YES | YES      | YES     | YES      | NONE               | REAL / FULLY IMPLEMENTED |
+
+================================================================================
+DETAILED COMPONENT & FEATURE INVENTORY
+================================================================================
+
+--------------------------------------------------------------------------------
+1. COMPONENT: Authentication & Workspace Registration
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Authentication, Login, Workspace Registration & Logout
+2. Location:
+   - Frontend: src/pages/auth/LoginPage.tsx, src/pages/auth/CreateWorkspacePage.tsx, src/store/authStore.ts, src/api/services.ts (authApi)
+   - Backend: com.workhive.module.auth.controller.AuthController, com.workhive.module.auth.service.AuthService
+   - API Routes:
+     - POST /api/auth/workspace (Public)
+     - POST /api/auth/login (Public)
+     - POST /api/auth/refresh (Public)
+     - POST /api/auth/logout (Authenticated)
+   - Database / Storage: tenants table, users table, refresh_tokens table, permissions table
+3. What the user sees:
+   - Clean dark-glass login card with Work Email and Password inputs, Remember Me toggle, and "Create a new company workspace" link.
+   - 2-column Create Workspace form with Organization Name, Company Code, Industry, Timezone, Admin Full Name, Work Email, Password, and Phone.
+4. What happens when user interacts:
+   - Submitting Login validates credentials, receives JWT Access Token + Refresh Token + User Profile + Tenant metadata, stores in Zustand localStorage auth store, and redirects to /dashboard.
+   - Submitting Create Workspace seeds initial Tenant, initializes Admin User (TENANT_ADMIN), seeds standard RBAC permissions, and issues JWT tokens directly into session.
+5. Frontend logic:
+   - React Hook Form / useState controlled inputs, Axios auth header interceptor injection, Zustand persist middleware (workhive-auth).
+6. Backend / API logic:
+   - BCrypt password hashing, Spring Security AuthenticationManager, JWT generation with claims (sub: userId, tenantId, role, email, fullName), transaction auditing via AuditService.
+7. Database / Storage behavior:
+   - Inserts record into `tenants`, creates `users` record with role `TENANT_ADMIN`, writes `refresh_tokens` record with 7-day expiration.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Public for registration & login; requires valid Bearer JWT for logout.
+10. Inputs:
+    - Login: email, password.
+    - Workspace: companyName, companyCode, industry, timezone, workingDays, adminName, adminEmail, adminPassword, phone.
+11. Outputs:
+    - AuthResponse: { accessToken, refreshToken, tokenType: "Bearer", user: { id, email, fullName, role, employeeCode }, tenant: { id, name, code, timezone } }
+12. Loading state:
+    - Button spinner with disabled state while mutation is pending.
+13. Empty state:
+    - Form validation errors displayed on empty/invalid inputs.
+14. Error handling:
+    - 401 Unauthorized for bad credentials; 409 Conflict for existing tenant code or admin email; displayed via toast/alert banner.
+15. Success behavior:
+    - Instant redirect to /dashboard with authenticated layout.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - JwtTokenProvider, PasswordEncoder, TenantRepository, UserRepository, RefreshTokenRepository.
+18. Known limitations / Suspicious behavior:
+    - None. Multi-tenant uniqueness on (tenant_id, email) properly isolates users across organizations.
+
+--------------------------------------------------------------------------------
+2. COMPONENT: Multi-Tenant Context & Security Guard
+--------------------------------------------------------------------------------
+1. Component / Feature Name: TenantContext & Spring Security RBAC Filter Chain
+2. Location:
+   - Frontend: src/App.tsx (ProtectedRoute, AdminRoute), src/api/client.ts
+   - Backend: com.workhive.security.TenantContext, com.workhive.security.JwtAuthenticationFilter, com.workhive.config.SecurityConfig
+   - API Routes: Applied globally to all `/api/**` endpoints
+   - Database / Storage: ThreadLocal memory context
+3. What the user sees:
+   - Seamless routing for authenticated members; automatic redirect to `/login` for unauthenticated visitors; automatic redirect to `/dashboard` for employees attempting to access restricted Admin routes (/action-center, /people, /departments, /teams, /settings).
+4. What happens when user interacts:
+   - Every outgoing HTTP request attaches `Authorization: Bearer <token>`.
+   - Backend extracts token, validates signature and expiration, populates `TenantContext.setContext(userId, tenantId, role)`, and sets `SecurityContextHolder`.
+5. Frontend logic:
+   - Client-side React Router navigation guards checking `useAuthStore().isAuthenticated` and `user.role`.
+6. Backend / API logic:
+   - Stateless JWT filter executed before UsernamePasswordAuthenticationFilter; MDC logging populated with correlationId and tenantId.
+7. Database / Storage behavior:
+   - Scopes all JPA queries with `tenantId` extracted strictly from server-side `TenantContext.requireTenantId()`.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Role-based method security `@PreAuthorize("hasRole('TENANT_ADMIN')")` and `@PreAuthorize("hasAnyRole('TENANT_ADMIN', 'MANAGER')")`.
+10. Inputs:
+    - Authorization Header: `Bearer <jwt>`
+11. Outputs:
+    - TenantContext ThreadLocal state or 401/403 HTTP response.
+12. Loading state:
+    - N/A.
+13. Empty state:
+    - 401 Unauthorized JSON: `{"error":"Unauthorized","message":"Authentication required"}`
+14. Error handling:
+    - Custom AuthenticationEntryPoint and AccessDeniedHandler returning clean JSON.
+15. Success behavior:
+    - Request proceeds to target controller method with verified tenant scope.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - JJWT (io.jsonwebtoken 0.12.5), Spring Security 6.
+18. Known limitations / Suspicious behavior:
+    - None. Tenant ID from frontend payload is ignored in favor of server-verified JWT claim.
+
+--------------------------------------------------------------------------------
+3. COMPONENT: Organization Dashboard
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Dashboard & SaaS Overview Analytics
+2. Location:
+   - Frontend: src/pages/dashboard/DashboardPage.tsx
+   - Backend: com.workhive.module.report.controller.ReportController, com.workhive.module.attendance.controller.AttendanceController, com.workhive.module.task.controller.TaskController, com.workhive.module.project.controller.ProjectController
+   - API Routes:
+     - GET /api/reports/organization
+     - GET /api/attendance/today
+     - GET /api/tasks
+     - GET /api/projects
+     - GET /api/activities/my
+   - Database / Storage: users, projects, tasks, attendance, leave_requests, work_activities tables
+3. What the user sees:
+   - Metric cards: Total Active Employees, Total Projects, Open Tasks, Today's Present Attendance.
+   - Check-in / Check-out quick action widget with live elapsed timer.
+   - Project progress bars with completed task percentage.
+   - Task backlog widget categorized by status.
+   - Live activity stream showing recent actions.
+4. What happens when user interacts:
+   - Clicking "Check In" records attendance and starts work timer.
+   - Clicking "Check Out" closes today's session and logs total hours.
+   - Clicking on projects/tasks navigates to their respective pages.
+5. Frontend logic:
+   - Parallel TanStack React Queries fetching stats; conditional rendering for employee vs admin metrics.
+6. Backend / API logic:
+   - Aggregates tenant counts and active records scoped to current tenant context.
+7. Database / Storage behavior:
+   - Read queries with indexed tenant_id clauses.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Authenticated user (EMPLOYEE, MANAGER, TENANT_ADMIN).
+10. Inputs:
+    - None (scoped by session JWT).
+11. Outputs:
+    - Aggregated JSON stats and lists.
+12. Loading state:
+    - Skeleton shimmer loaders for metric cards and tables.
+13. Empty state:
+    - "No active projects" / "No tasks assigned" informational placeholders with CTA buttons.
+14. Error handling:
+    - Graceful fallback with error alerts.
+15. Success behavior:
+    - Real-time stats rendered.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - ReportService, AttendanceService, TaskService, ProjectService.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+4. COMPONENT: Action Center (Approval Workflows)
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Action Center & Manager Approval Hub
+2. Location:
+   - Frontend: src/pages/action-center/ActionCenterPage.tsx
+   - Backend: com.workhive.module.actioncenter.controller.ActionCenterController, com.workhive.module.actioncenter.service.ActionCenterService
+   - API Routes:
+     - GET /api/action-center/pending (Filter: ALL, LEAVE, TASK)
+     - GET /api/action-center/stats
+     - POST /api/leaves/{id}/review (Approve / Reject)
+     - POST /api/tasks/{id}/review (Approve / Reject)
+   - Database / Storage: leave_requests, leave_balances, tasks, notifications, audit_logs tables
+3. What the user sees:
+   - Tabbed review queue: "All Pending Items", "Leave Requests", "Task Reviews".
+   - Cards showing requester profile, employee code, department, reason/notes, date ranges, attached document links, and "Approve" / "Reject" buttons with comment modal.
+4. What happens when user interacts:
+   - Manager/Admin clicks Approve &rarr; Leave balance is deducted, status updated to APPROVED, employee notified via in-app notification and email event.
+   - Manager/Admin clicks Reject &rarr; Leave status set to REJECTED with mandatory reason, leave balance remains untouched, employee notified.
+   - Reviewing a task in REVIEW status &rarr; Approving sets task to COMPLETED; Rejecting moves task back to IN_PROGRESS.
+5. Frontend logic:
+   - Optimistic query invalidation with React Query; review modal with feedback text input.
+6. Backend / API logic:
+   - Unified ActionItem DTO combining pending leave requests and review-stage tasks; transactional status transitions with audit logging.
+7. Database / Storage behavior:
+   - Updates `leave_requests.status`, decrements `leave_balances.remaining`, updates `tasks.status`, writes to `notifications` and `audit_logs`.
+8. External API / Service involved:
+   - In-app WebSocket notification dispatch.
+9. Authentication / Authorization:
+   - Role guarded: TENANT_ADMIN or MANAGER.
+10. Inputs:
+    - ReviewRequest: { status: "APPROVED" | "REJECTED", reviewNotes: "string" }
+11. Outputs:
+    - Updated entity and refreshed queue.
+12. Loading state:
+    - Spinner on action buttons during mutation.
+13. Empty state:
+    - "All Caught Up! No pending approval items in your workspace." with celebration badge.
+14. Error handling:
+    - 400 Bad Request on invalid state transitions.
+15. Success behavior:
+    - Item removed from queue, success banner displayed.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - LeaveService, TaskService, NotificationService, AuditService.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+5. COMPONENT: Project Management & Workspaces
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Projects, Workspaces, Milestones & Team Allocation
+2. Location:
+   - Frontend: src/pages/projects/ProjectsPage.tsx, src/pages/projects/ProjectWorkspacePage.tsx
+   - Backend: com.workhive.module.project.controller.ProjectController, com.workhive.module.project.service.ProjectService
+   - API Routes:
+     - GET /api/projects
+     - GET /api/projects/{id}
+     - POST /api/projects
+     - PUT /api/projects/{id}
+     - DELETE /api/projects/{id}
+     - GET /api/projects/{id}/members
+     - POST /api/projects/{id}/members
+     - DELETE /api/projects/{id}/members/{userId}
+     - GET /api/projects/{id}/milestones
+     - POST /api/projects/{id}/milestones
+     - PATCH /api/projects/milestones/{milestoneId}/complete
+   - Database / Storage: projects, project_members, milestones, tasks tables
+3. What the user sees:
+   - Grid and table view of all organization projects with status chips (PLANNING, ACTIVE, ON_HOLD, COMPLETED, CANCELLED), progress bars, budget/spent indicators, member avatars, and target completion dates.
+   - Dedicated Project Workspace (`/projects/:id`) with 4 tabs: Overview, Tasks, Team Members, Milestones.
+4. What happens when user interacts:
+   - Clicking "New Project" opens modal with Name, Key, Description, Department, Manager, Start Date, End Date, Budget.
+   - Adding a team member allocates user to project with role (LEAD, MEMBER, VIEWER).
+   - Creating a milestone sets deliverables; clicking complete marks milestone achieved.
+   - Deleting a project soft-deletes or purges according to RBAC.
+5. Frontend logic:
+   - Dynamic progress computation (`completedTasks / totalTasks * 100`), filter by status and department, search by name/key.
+6. Backend / API logic:
+   - Validates unique project keys per tenant; manages membership join table; calculates task rollups dynamically.
+7. Database / Storage behavior:
+   - CRUD on `projects`, `project_members`, `milestones`.
+8. External API / Service involved:
+   - GitHub entity mapping if linked to external repository.
+9. Authentication / Authorization:
+   - All members can view active projects; Project creation/deletion restricted to TENANT_ADMIN and MANAGER.
+10. Inputs:
+    - CreateProjectRequest: { name, key, description, departmentId, managerId, startDate, targetEndDate, budget }
+11. Outputs:
+    - Project DTO with member list, task summary, and milestone timeline.
+12. Loading state:
+    - Skeleton project cards.
+13. Empty state:
+    - "No projects found. Launch your first project workspace."
+14. Error handling:
+    - 409 Conflict if project key is duplicated within tenant.
+15. Success behavior:
+    - Instant addition to project grid and redirect to project workspace.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - DepartmentRepository, UserRepository, TaskRepository.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+6. COMPONENT: Task Management & Interactive Kanban Board
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Tasks, Kanban Board, Subtasks & Task Comments
+2. Location:
+   - Frontend: src/pages/tasks/TasksPage.tsx, src/pages/tasks/KanbanBoard.tsx
+   - Backend: com.workhive.module.task.controller.TaskController, com.workhive.module.task.service.TaskService
+   - API Routes:
+     - GET /api/tasks (Params: projectId, assigneeId, status, priority)
+     - GET /api/tasks/{id}
+     - POST /api/tasks
+     - PUT /api/tasks/{id}
+     - PATCH /api/tasks/{id}/status
+     - DELETE /api/tasks/{id}
+     - GET /api/tasks/{id}/subtasks
+     - POST /api/tasks/{id}/subtasks
+     - PATCH /api/tasks/subtasks/{subtaskId}/toggle
+     - GET /api/tasks/{id}/comments
+     - POST /api/tasks/{id}/comments
+   - Database / Storage: tasks, subtasks, task_comments tables
+3. What the user sees:
+   - Toggleable List View and 5-column Kanban Board: BACKLOG, TODO, IN_PROGRESS, REVIEW, COMPLETED.
+   - Cards with Priority Badges (URGENT, HIGH, MEDIUM, LOW), Assignee avatar, Estimated vs Actual hours, subtask completion counter (e.g. 2/4), and comment bubbles.
+   - Detailed Task Modal with full rich description, subtask checklist with interactive checkboxes, time log history, and threaded comments stream with author stamps.
+4. What happens when user interacts:
+   - Dragging and dropping a card between Kanban columns immediately calls `PATCH /api/tasks/{id}/status` and updates state optimistically.
+   - Checking a subtask calls `PATCH /api/tasks/subtasks/{id}/toggle` and recalculates task completion.
+   - Adding a comment posts `POST /api/tasks/{id}/comments` and triggers in-app notification to task assignee/creator.
+   - Clicking "Submit for Review" transitions task to REVIEW status and notifies manager.
+5. Frontend logic:
+   - HTML5 Drag and Drop API in KanbanBoard.tsx; optimistic state updates; subtask addition split by newline.
+6. Backend / API logic:
+   - Updates task status; recalculates project progress; logs activity into WorkActivity; dispatches notification on review/assignment.
+7. Database / Storage behavior:
+   - CRUD on `tasks`, `subtasks`, `task_comments`.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Assignees and managers can update status; task creation available to all authenticated members.
+10. Inputs:
+    - CreateTaskRequest: { title, description, projectId, assigneeId, priority, dueDate, estimatedHours, subtasks: [] }
+11. Outputs:
+    - Task entity with embedded comments, subtasks, and project metadata.
+12. Loading state:
+    - Column skeletons.
+13. Empty state:
+    - "No tasks in this column" drop targets.
+14. Error handling:
+    - Reverts card to original column on network error; displays toast alert.
+15. Success behavior:
+    - Card smoothly transitions into new column; status badge updates.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - ProjectRepository, UserRepository, NotificationService, WorkActivityService.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+7. COMPONENT: People & Workspace Members
+--------------------------------------------------------------------------------
+1. Component / Feature Name: People, User Directory, Departments & Teams
+2. Location:
+   - Frontend: src/pages/people/PeoplePage.tsx, src/pages/departments/DepartmentsPage.tsx, src/pages/teams/TeamsPage.tsx
+   - Backend: com.workhive.module.user.controller.UserController, com.workhive.module.department.controller.DepartmentController, com.workhive.module.team.controller.TeamController
+   - API Routes:
+     - GET /api/users
+     - GET /api/users/active
+     - GET /api/users/{id}
+     - PUT /api/users/{id}
+     - DELETE /api/users/{id} (Deactivate)
+     - GET /api/departments
+     - POST /api/departments
+     - PUT /api/departments/{id}
+     - DELETE /api/departments/{id}
+     - GET /api/teams
+     - POST /api/teams
+     - PUT /api/teams/{id}
+     - DELETE /api/teams/{id}
+   - Database / Storage: users, departments, teams tables
+3. What the user sees:
+   - Active Members tab and Pending Invitations tab.
+   - Member cards and data table: Name, Role badge (ADMIN, MANAGER, EMPLOYEE), Employee Code, Department, Team, Reporting Manager, Contact Phone, Status (ACTIVE/INACTIVE).
+   - "Invite Employee" button opening invitation modal.
+   - "Departments" page with budget, head of department, and member count.
+   - "Teams" page with team lead and department mappings.
+4. What happens when user interacts:
+   - Admin can edit employee role, assign department/team/manager, or deactivate member.
+   - Admin can create new Departments and Teams with assigned managers.
+5. Frontend logic:
+   - Search by name/email/code, filter by department and role, pagination support.
+6. Backend / API logic:
+   - Tenant-scoped CRUD; soft-deactivation (status = INACTIVE); prevents deactivating the sole initial TENANT_ADMIN.
+7. Database / Storage behavior:
+   - Updates `users.status = 'INACTIVE'`, inserts `departments`, inserts `teams`.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Viewing directory available to all authenticated users; Management and Invitations restricted to TENANT_ADMIN and MANAGER.
+10. Inputs:
+    - UpdateUserRequest: { fullName, role, departmentId, teamId, managerId, phone, status }
+11. Outputs:
+    - User DTOs with populated department/team names.
+12. Loading state:
+    - Table skeleton rows.
+13. Empty state:
+    - "No members matching filter."
+14. Error handling:
+    - 400 Bad Request on invalid manager cycles.
+15. Success behavior:
+    - Instant table refresh and badge update.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - UserRepository, DepartmentRepository, TeamRepository.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+8. COMPONENT: Employee Invitation & Acceptance Flow
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Employee Invitation, Secure Token Generation & Registration
+2. Location:
+   - Frontend: src/pages/people/PeoplePage.tsx, src/pages/auth/AcceptInvitationPage.tsx
+   - Backend: com.workhive.module.user.controller.InvitationController, com.workhive.module.user.service.InvitationService
+   - API Routes:
+     - POST /api/invitations (Admin invite)
+     - GET /api/invitations (List pending invitations)
+     - GET /api/invitations/token/{token} (Public verification)
+     - POST /api/invitations/accept (Public account activation)
+     - POST /api/invitations/{id}/resend (Resend email)
+     - DELETE /api/invitations/{id} (Revoke invitation)
+   - Database / Storage: invitations, users, outbox_events tables
+3. What the user sees:
+   - Admin: "Invite Employee" modal with Full Name, Work Email, Role, Department, Team, Reporting Manager.
+   - Admin after submit: "Invitation Sent Automatically!" confirmation modal with recipient verification and "Copy Invitation Link" fallback button.
+   - Employee: Dedicated `/accept-invitation?token=...` page with Workspace name, Inviter name, Pre-filled email, and inputs for Full Name, Password, and Phone.
+4. What happens when user interacts:
+   - Admin sends invite &rarr; Generates high-entropy 64-char hex token, records invitation in database, triggers automatic background email dispatch via EmailService, returns invite URL.
+   - Employee opens link &rarr; Frontend validates token against backend; submitting form creates active user account, revokes invitation token, generates JWT session, and logs employee directly into dashboard.
+5. Frontend logic:
+   - Token validation on page mount; password strength meter; clipboard copy helper.
+6. Backend / API logic:
+   - Validates non-duplicate active email within tenant; sets 7-day expiration; creates user record upon acceptance; records outbox event.
+7. Database / Storage behavior:
+   - Inserts record into `invitations` with status `PENDING`; upon acceptance marks status `ACCEPTED`, creates `users` record, generates employee code (`CODE-EMP-XXX`).
+8. External API / Service involved:
+   - Dispatches email via Gmail OAuth (if admin connected) or live SMTP (smtp.gmail.com:587) or local MailHog.
+9. Authentication / Authorization:
+   - Inviting requires TENANT_ADMIN or MANAGER; Token validation and Acceptance endpoints are public (`permitAll()`).
+10. Inputs:
+    - InviteUserRequest: { name, email, role, departmentId, teamId, managerId }
+    - AcceptInvitationRequest: { token, password, fullName, phone }
+11. Outputs:
+    - AuthResponse with active JWT tokens upon successful acceptance.
+12. Loading state:
+    - Button spinner with "Sending invitation...".
+13. Empty state:
+    - "No pending invitations."
+14. Error handling:
+    - 400 Bad Request on expired or revoked token with "This invitation link is invalid or has expired."
+15. Success behavior:
+    - Account activated and auto-redirect to employee dashboard.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - EmailService, UserRepository, TenantRepository, PasswordEncoder, JwtTokenProvider.
+18. Known limitations / Suspicious behavior:
+    - None. Recipient email is strictly matched to entered address.
+
+--------------------------------------------------------------------------------
+9. COMPONENT: Per-Admin Gmail OAuth & Multi-Tenant Email Architecture
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Per-Admin Gmail OAuth Sender & Email Connection Service
+2. Location:
+   - Frontend: src/pages/settings/SettingsPage.tsx (Email Sender section), src/api/services.ts (emailConnectionApi)
+   - Backend:
+     - com.workhive.module.user.controller.EmailConnectionController
+     - com.workhive.module.user.service.EmailConnectionService
+     - com.workhive.module.user.service.email.EmailProvider
+     - com.workhive.module.user.service.email.GmailProvider
+     - com.workhive.module.user.service.EmailService
+   - API Routes:
+     - GET /api/email-connections/status (Authenticated)
+     - POST /api/email-connections/gmail/connect (Authenticated)
+     - GET /api/email-connections/gmail/callback (Public OAuth callback)
+     - POST /api/email-connections/gmail/callback-exchange (Authenticated)
+     - DELETE /api/email-connections/disconnect (Authenticated)
+     - POST /api/email-connections/gmail/reconnect (Authenticated)
+   - Database / Storage: email_connections table (V2 Flyway migration)
+3. What the user sees:
+   - In Settings &rarr; "Email Sender" card with provider icon, live status badge (`CONNECTED`, `NOT_CONNECTED`, `ERROR`, `REAUTH_REQUIRED`), authorized email display, last sent timestamp, "Connect Gmail Account" button, "Reauthorize" button, and "Disconnect" button.
+4. What happens when user interacts:
+   - Clicking "Connect Gmail Account" &rarr; Backend generates cryptographically secure state, returns Google OAuth authorization URL, redirects to Google consent screen.
+   - User grants permission &rarr; Google redirects to `/api/email-connections/gmail/callback`, backend validates state, exchanges code for access & refresh tokens, encrypts tokens via AES-GCM, fetches userinfo email, saves connection, and redirects to frontend with success notification.
+   - Sending invitations &rarr; EmailService detects CONNECTED Gmail OAuth connection for inviting admin and transmits directly via Gmail API (`https://gmail.googleapis.com/gmail/v1/users/me/messages/send`). If no OAuth connection is active, falls back cleanly to SMTP.
+5. Frontend logic:
+   - Query param detection (`?email_connected=true`) on callback return, auto-refreshes connection status, confirmation dialogs on disconnect.
+6. Backend / API logic:
+   - Dual-mode email dispatching; OAuth code exchange via RestTemplate; automatic token refresh when expired; AES-GCM token encryption via CryptoUtils; public callback redirect handling.
+7. Database / Storage behavior:
+   - Inserts/updates `email_connections` table with unique constraint `(tenant_id, user_id, provider)`.
+8. External API / Service involved:
+   - Google Accounts OAuth2 (`https://accounts.google.com/o/oauth2/v2/auth`, `https://oauth2.googleapis.com/token`, `https://oauth2.googleapis.com/revoke`, `https://www.googleapis.com/oauth2/v3/userinfo`, `https://gmail.googleapis.com/gmail/v1/users/me/messages/send`).
+9. Authentication / Authorization:
+   - Management requires TENANT_ADMIN; callback is public with state verification.
+10. Inputs:
+    - OAuth code and state parameters.
+11. Outputs:
+    - ConnectionStatusResponse: { provider, emailAddress, status, lastSendAt, errorMessage, connectedAt }
+12. Loading state:
+    - Spinner icon on Connect / Reauthorize buttons.
+13. Empty state:
+    - "Not Connected" card with explanation and Google connect CTA.
+14. Error handling:
+    - Captures provider errors, sets status `REAUTH_REQUIRED` or `ERROR` with descriptive message.
+15. Success behavior:
+    - Card turns green with "Connected" badge and authorized email address.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - EmailConnectionRepository, GmailProvider, CryptoUtils, EmailService.
+18. Known limitations / Suspicious behavior:
+    - Requires Google Cloud Console OAuth Client ID & Secret in production.
+
+--------------------------------------------------------------------------------
+10. COMPONENT: Attendance Tracking & Time Logs
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Daily Attendance Check-In / Check-Out & Timesheet Logs
+2. Location:
+   - Frontend: src/pages/attendance/AttendancePage.tsx
+   - Backend: com.workhive.module.attendance.controller.AttendanceController, com.workhive.module.attendance.service.AttendanceService, com.workhive.module.attendance.controller.TimeTrackingController, com.workhive.module.attendance.service.TimeTrackingService
+   - API Routes:
+     - POST /api/attendance/check-in
+     - POST /api/attendance/check-out
+     - GET /api/attendance/today
+     - GET /api/attendance/my
+     - GET /api/attendance/daily
+     - GET /api/attendance/stats/monthly
+     - POST /api/time-entries/start
+     - POST /api/time-entries/stop
+     - POST /api/time-entries/manual
+     - GET /api/time-entries/my
+   - Database / Storage: attendance, time_entries tables
+3. What the user sees:
+   - Live punch card with Check In / Check Out button, today's total logged hours, start timestamp, working status indicator.
+   - Monthly attendance statistics: Present Days, Absent Days, Half Days, Late Check-ins, Total Work Hours.
+   - History table with Date, Check In Time, Check Out Time, Duration, Status, and Notes.
+   - Task Time Tracker widget to track exact hours against specific tasks.
+4. What happens when user interacts:
+   - Clicking Check In creates today's attendance record with timestamp and UTC timezone.
+   - Clicking Check Out computes total duration in minutes and marks record `CHECKED_OUT`.
+   - Logging task timer starts active stopwatch associated with task ID.
+5. Frontend logic:
+   - Real-time client-side interval timer displaying elapsed hh:mm:ss since check-in.
+6. Backend / API logic:
+   - Prevents duplicate check-ins for the same user on the same calendar date; calculates duration via `java.time.Duration`.
+7. Database / Storage behavior:
+   - Inserts and updates records in `attendance` and `time_entries` tables scoped by tenant and user.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Authenticated user for own records; Managers/Admins can view tenant daily summaries.
+10. Inputs:
+    - CheckInRequest: { timezone, notes }
+    - CheckOutRequest: { notes }
+    - ManualTimeEntryRequest: { taskId, startTime, endTime, durationMinutes, description }
+11. Outputs:
+    - Attendance entity with calculated `durationMinutes`.
+12. Loading state:
+    - Skeleton loader on attendance history table.
+13. Empty state:
+    - "No attendance records found for this period."
+14. Error handling:
+    - 400 Bad Request if trying to check in twice or check out without checking in.
+15. Success behavior:
+    - Live button toggles between "Check In" and "Check Out"; timer updates.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - AttendanceRepository, TimeEntryRepository, WorkActivityService.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+11. COMPONENT: Leave Management & Balances
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Leave Application, Balance Tracking & Leave Approval
+2. Location:
+   - Frontend: src/pages/leave/LeavePage.tsx
+   - Backend: com.workhive.module.leave.controller.LeaveController, com.workhive.module.leave.service.LeaveService
+   - API Routes:
+     - GET /api/leaves/types (Active leave types)
+     - GET /api/leaves/balances (User balances)
+     - GET /api/leaves/my (User request history)
+     - POST /api/leaves (Apply for leave)
+     - DELETE /api/leaves/{id} (Cancel pending leave)
+     - GET /api/leaves/pending (Manager review queue)
+     - POST /api/leaves/{id}/review (Approve / Reject)
+   - Database / Storage: leave_types, leave_balances, leave_requests tables
+3. What the user sees:
+   - Leave Balance Cards: Annual Leave, Sick Leave, Casual Leave with Total, Used, and Remaining day counters.
+   - "Apply for Leave" button opening modal with Leave Type selector, Date Range picker (Start Date, End Date), Reason text area, and optional Supporting Document attachment.
+   - "My Leave History" table with status chips (PENDING, APPROVED, REJECTED, CANCELLED), reviewer notes, and cancel action for pending items.
+4. What happens when user interacts:
+   - Applying for leave calculates requested days, validates sufficient balance, verifies no overlapping pending/approved leaves, and submits request.
+   - Manager reviews request in Action Center or Leave page &rarr; Approving deducts balance and logs event; Rejecting notifies employee.
+   - Canceling a pending leave deletes/cancels request before review.
+5. Frontend logic:
+   - Inclusive day count calculation on date range change; disables submit if balance is exceeded.
+6. Backend / API logic:
+   - Date range collision validation (`countOverlappingRequests`); yearly balance lazy-initialization; transactional balance deduction.
+7. Database / Storage behavior:
+   - Inserts into `leave_requests`; updates `leave_balances.remaining` and `leave_balances.used`.
+8. External API / Service involved:
+   - In-app notification and email notification to manager and requester.
+9. Authentication / Authorization:
+   - Employees manage own leaves; Managers/Admins approve/reject via RBAC.
+10. Inputs:
+    - ApplyLeaveRequest: { leaveTypeId, startDate, endDate, reason, supportingDocId }
+11. Outputs:
+    - LeaveRequest DTO with leaveTypeName and status.
+12. Loading state:
+    - Modal button spinner.
+13. Empty state:
+    - "No leave requests found."
+14. Error handling:
+    - 400 Bad Request on insufficient balance or overlapping dates with exact reason.
+15. Success behavior:
+    - New leave appears in history with PENDING badge; balance preview updates.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - LeaveRequestRepository, LeaveBalanceRepository, LeaveTypeRepository, NotificationService.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+12. COMPONENT: Document Management & MinIO Storage
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Document Upload, Storage, Metadata & Association
+2. Location:
+   - Frontend: src/pages/documents/DocumentsPage.tsx
+   - Backend: com.workhive.module.document.controller.DocumentController, com.workhive.module.document.service.DocumentService, com.workhive.module.document.service.StorageService
+   - API Routes:
+     - GET /api/documents (Paginated active documents)
+     - GET /api/documents/my (User uploaded documents)
+     - GET /api/documents/{id} (Document metadata)
+     - GET /api/documents/{id}/download (Binary file stream)
+     - POST /api/documents/upload (Multipart form upload)
+     - DELETE /api/documents/{id} (Soft delete)
+   - Database / Storage: documents table, MinIO Object Storage (bucket: workhive-documents) or local filesystem fallback
+3. What the user sees:
+   - Document library grid/list with File Icon (PDF, DOCX, XLSX, PNG, ZIP), File Name, Size (KB/MB), Uploaded By, Entity Association (Project, Task, Organization), and Upload Date.
+   - "Upload Document" modal with Drag & Drop zone, File selector, Name, Description, and Entity Mapping selector.
+   - Download and Delete action buttons per item.
+4. What happens when user interacts:
+   - Uploading a file sends multipart form to backend &rarr; StorageService streams bytes to MinIO object storage (or local disk fallback if MinIO is offline), generates unique object key, stores metadata in PostgreSQL, and records audit log.
+   - Clicking Download streams raw bytes with appropriate `Content-Type` and `Content-Disposition: attachment; filename="..."`.
+5. Frontend logic:
+   - File size formatting (Bytes &rarr; KB &rarr; MB); file extension icon mapping; filter by entity type.
+6. Backend / API logic:
+   - Streamed storage; auto-bucket creation; fallback storage directory in user home/scratch directory if S3/MinIO unreachable; MIME type detection.
+7. Database / Storage behavior:
+   - Inserts record into `documents` table with `file_path`, `content_type`, `file_size`, and `status = 'ACTIVE'`.
+8. External API / Service involved:
+   - MinIO Object Storage (`http://localhost:9000`).
+9. Authentication / Authorization:
+   - Authenticated users can upload and view documents in their tenant.
+10. Inputs:
+    - Multipart: file (binary), name, description, entityType, entityId.
+11. Outputs:
+    - Document entity JSON or binary file stream on download.
+12. Loading state:
+    - Upload progress indicator.
+13. Empty state:
+    - "No documents uploaded yet. Upload your first workspace file."
+14. Error handling:
+    - 400 Bad Request on empty file or file exceeding 50MB limit.
+15. Success behavior:
+    - Document card appears in grid with download link.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - MinIO Java SDK (io.minio 8.5.9), DocumentRepository, StorageService.
+18. Known limitations / Suspicious behavior:
+    - None. Seamlessly falls back to local disk storage if MinIO is not running.
+
+--------------------------------------------------------------------------------
+13. COMPONENT: Company Announcements
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Organization Announcements & Broadcast Feed
+2. Location:
+   - Frontend: src/pages/announcements/AnnouncementsPage.tsx
+   - Backend: com.workhive.module.announcement.controller.AnnouncementController, com.workhive.module.announcement.service.AnnouncementService
+   - API Routes:
+     - GET /api/announcements (Feed for current user)
+     - GET /api/announcements/all (Admin management list)
+     - POST /api/announcements (Create announcement)
+     - PUT /api/announcements/{id} (Update announcement)
+     - DELETE /api/announcements/{id} (Delete announcement)
+   - Database / Storage: announcements table
+3. What the user sees:
+   - Broadcast banner feed with Priority tags (NORMAL, URGENT), Pin icon for pinned items, Target Scope (All Company, Department, Team), Publisher Name and timestamp.
+   - Admin "New Announcement" modal with Title, Content, Priority toggle, Target Department/Team selector, and "Pin to Top" toggle.
+4. What happens when user interacts:
+   - Admin posts announcement &rarr; Saves to database, logs audit event, broadcasts real-time notification to targeted employees.
+   - Pinned announcements remain locked at the top of the feed.
+5. Frontend logic:
+   - Sorts pinned items first, then descending by creation date; renders markdown/text content.
+6. Backend / API logic:
+   - Scopes feed visibility: users see announcements targeted to ALL, their specific department, or their specific team.
+7. Database / Storage behavior:
+   - CRUD on `announcements` table.
+8. External API / Service involved:
+   - WebSocket broadcast.
+9. Authentication / Authorization:
+   - All employees can view targeted feed; creation/deletion restricted to TENANT_ADMIN and MANAGER.
+10. Inputs:
+    - CreateAnnouncementRequest: { title, content, priority, targetType, targetId, isPinned, expiresAt }
+11. Outputs:
+    - Announcement DTO list.
+12. Loading state:
+    - Skeleton cards.
+13. Empty state:
+    - "No company announcements at this time."
+14. Error handling:
+    - Validation errors on empty title/content.
+15. Success behavior:
+    - Instant card appearance at top of feed.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - AnnouncementRepository, NotificationService.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+14. COMPONENT: Notifications & Real-Time WebSockets
+--------------------------------------------------------------------------------
+1. Component / Feature Name: In-App Notification Center & STOMP WebSocket Messaging
+2. Location:
+   - Frontend: src/pages/notifications/NotificationsPage.tsx, src/components/layout/Navbar.tsx
+   - Backend: com.workhive.module.notification.controller.NotificationController, com.workhive.module.notification.service.NotificationService, com.workhive.config.WebSocketConfig
+   - API Routes:
+     - GET /api/notifications (Paginated notification list)
+     - GET /api/notifications/unread-count (Badge counter)
+     - PATCH /api/notifications/{id}/read (Mark single read)
+     - PATCH /api/notifications/read-all (Mark all read)
+     - DELETE /api/notifications/{id} (Delete notification)
+     - WebSocket: `/ws` (STOMP endpoint with SockJS fallback)
+   - Database / Storage: notifications table
+3. What the user sees:
+   - Navbar bell icon with glowing unread counter badge and dropdown quick preview.
+   - Dedicated `/notifications` page with list of all alerts, category icons (TASK, LEAVE, PROJECT, ANNOUNCEMENT, SYSTEM), unread indicator dot, and "Mark All as Read" button.
+4. What happens when user interacts:
+   - Receiving an event (e.g. assigned a task or leave approved) updates unread badge in real time via WebSocket without page refresh.
+   - Clicking a notification marks it read and navigates to target URL (e.g. `/tasks` or `/action-center`).
+5. Frontend logic:
+   - StompJS / SockJS client connection on app load; sound/toast trigger on incoming message; polling fallback every 30s.
+6. Backend / API logic:
+   - `NotificationService.createNotification()` saves record to PostgreSQL and pushes message to `/topic/notifications/{userId}` via `SimpMessagingTemplate`.
+7. Database / Storage behavior:
+   - CRUD on `notifications` table (`is_read` boolean updates).
+8. External API / Service involved:
+   - Spring STOMP WebSocket Broker.
+9. Authentication / Authorization:
+   - Users only access notifications where `user_id = TenantContext.getUserId()`.
+10. Inputs:
+    - Notification IDs.
+11. Outputs:
+    - Notification items: { id, title, message, type, isRead, targetUrl, createdAt }
+12. Loading state:
+    - Shimmer list items.
+13. Empty state:
+    - "No notifications yet. You're all caught up!"
+14. Error handling:
+    - WebSocket auto-reconnect with exponential backoff.
+15. Success behavior:
+    - Unread badge resets to 0 when read all clicked.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - NotificationRepository, SimpMessagingTemplate.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+15. COMPONENT: Unified Work Activity Feed
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Work Activity Stream & Audit Timeline
+2. Location:
+   - Frontend: src/pages/activity/ActivityFeedPage.tsx
+   - Backend: com.workhive.module.activity.controller.WorkActivityController, com.workhive.module.activity.service.WorkActivityService
+   - API Routes:
+     - GET /api/activities (Tenant wide activity stream)
+     - GET /api/activities/my (User personal activity stream)
+     - GET /api/activities/project/{projectId} (Project activity stream)
+   - Database / Storage: work_activities table
+3. What the user sees:
+   - Chronological timeline of all workspace events: GitHub commits, Pull Requests, Task status transitions, Document uploads, Attendance punches, Leave submissions, and Member joins.
+   - Source badges (GITHUB, WORKHIVE, JIRA, GITLAB), Author avatar, Event Title, Details snippet, and external links.
+4. What happens when user interacts:
+   - Filtering by source or project refetches tailored activity streams.
+   - Clicking external links opens associated GitHub commit/PR in new tab.
+5. Frontend logic:
+   - Infinite scroll / paginated feed; icon and color mapping by activity type.
+6. Backend / API logic:
+   - Ingests events asynchronously from internal services and external webhooks; stores normalized event format.
+7. Database / Storage behavior:
+   - Insert-only stream in `work_activities` table indexed by `(tenant_id, created_at)`.
+8. External API / Service involved:
+   - None (aggregates internal & external webhook data).
+9. Authentication / Authorization:
+   - Scoped to authenticated tenant context.
+10. Inputs:
+    - Pageable query parameters, source filter.
+11. Outputs:
+    - WorkActivity DTO: { id, source, activityType, title, details, externalId, targetUrl, createdAt, userName, userAvatar }
+12. Loading state:
+    - Timeline skeleton nodes.
+13. Empty state:
+    - "No activity recorded yet."
+14. Error handling:
+    - Graceful error message if stream fails to fetch.
+15. Success behavior:
+    - Timeline renders with relative time stamps ("5m ago", "2h ago").
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - WorkActivityRepository.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+16. COMPONENT: GitHub Integration
+--------------------------------------------------------------------------------
+1. Component / Feature Name: GitHub Integration, OAuth2, Repositories, Entity Mappings & Webhooks
+2. Location:
+   - Frontend: src/pages/integrations/IntegrationsPage.tsx
+   - Backend: com.workhive.module.integration.controller.IntegrationController, com.workhive.module.integration.service.IntegrationService
+   - API Routes:
+     - GET /api/integrations (List connected integrations)
+     - GET /api/integrations/github/oauth/url (Get GitHub OAuth authorization URL)
+     - POST /api/integrations/github/oauth/exchange (Exchange code for token)
+     - GET /api/integrations/github/{id}/repositories (List user GitHub repos)
+     - POST /api/integrations/connect (Connect via Personal Access Token / API Key)
+     - DELETE /api/integrations/{id} (Disconnect integration)
+     - POST /api/integrations/{id}/mappings (Map GitHub repo to WorkHive Project/Task)
+     - GET /api/integrations/{id}/mappings (List mapped entities)
+     - POST /api/integrations/github/{id}/sync (Trigger manual reconciliation sync)
+     - POST /api/integrations/webhook/github (Webhook ingestion endpoint)
+   - Database / Storage: integrations, integration_mappings tables
+3. What the user sees:
+   - Integrations Hub with GitHub card showing "Connected" / "Not Connected" badge, connected username `@octocat`, "Connect GitHub" button, and "Disconnect" button.
+   - Connect modal offering Personal Access Token / API Key entry.
+4. What happens when user interacts:
+   - Submitting PAT or completing OAuth stores AES-GCM encrypted token in `integrations` table.
+   - Calling `/repositories` queries `https://api.github.com/user/repos` using the decrypted bearer token.
+   - Clicking "Sync" triggers `syncIntegration()`, creating reconciliation activity entries in WorkActivity feed.
+   - Receiving GitHub webhook payloads (commits, PRs, issues) ingests events into `work_activities`.
+5. Frontend logic:
+   - Modal form for PAT; Disconnect mutation with query invalidation.
+6. Backend / API logic:
+   - Encrypts/decrypts access token using `CryptoUtils.encrypt()`; masks tokens as `"********"` in all GET responses; fallback simulated repos in dev mode; webhook parser for commits, PRs, and issues.
+7. Database / Storage behavior:
+   - CRUD on `integrations` and `integration_mappings` tables.
+8. External API / Service involved:
+   - GitHub REST API (`https://api.github.com/user`, `https://api.github.com/user/repos`, `https://github.com/login/oauth/access_token`).
+9. Authentication / Authorization:
+   - Management requires TENANT_ADMIN role; Webhook endpoint handles incoming payloads.
+10. Inputs:
+    - ConnectIntegrationRequest: { provider: "GITHUB", accessToken, externalUsername, scopes }
+    - GitHubWebhookPayload: { repositoryName, commitId, commitMessage, commitUrl, prNumber, prTitle, prUrl, issueNumber, issueTitle, issueUrl, sender }
+11. Outputs:
+    - Integration DTO with masked credentials and list of GitHubRepositoryDto.
+12. Loading state:
+    - Button spinner during connection/disconnection.
+13. Empty state:
+    - Card displays "Not Connected" badge.
+14. Error handling:
+    - Logs API errors; falls back to sample development repos if live token is invalid or rate limited.
+15. Success behavior:
+    - Card status switches to CONNECTED; activity logged.
+16. Implementation Status:
+    - PARTIALLY IMPLEMENTED (Core OAuth URL generation, PAT token connection, encrypted storage, live repo fetching from api.github.com, webhook activity ingestion, and reconciliation sync are fully implemented on backend. Direct commit pushing, branch creation, and PR creation UI from within WorkHive frontend are not implemented).
+17. Dependencies:
+    - IntegrationRepository, IntegrationMappingRepository, WorkActivityService, CryptoUtils.
+18. Known limitations / Suspicious behavior:
+    - Frontend currently uses the PAT modal as the primary connect UI on `/integrations`; the OAuth authorization URL endpoint exists on backend.
+
+--------------------------------------------------------------------------------
+17. COMPONENT: Other Integrations (GitLab, Jira, Slack)
+--------------------------------------------------------------------------------
+1. Component / Feature Name: GitLab, Jira Software, and Slack Integrations
+2. Location:
+   - Frontend: src/pages/integrations/IntegrationsPage.tsx
+   - Backend: com.workhive.module.integration.controller.IntegrationController, com.workhive.module.integration.service.IntegrationService
+   - API Routes:
+     - POST /api/integrations/connect (Supports provider = "GITLAB", "JIRA", "SLACK")
+     - DELETE /api/integrations/{id}
+     - GET /api/integrations
+   - Database / Storage: integrations table
+3. What the user sees:
+   - Cards on Integrations Hub for GitLab, Jira Software, and Slack with feature descriptions, Connect buttons, and Disconnect buttons.
+4. What happens when user interacts:
+   - Entering an API key/token saves the integration record with encrypted credentials in `integrations` table and marks status CONNECTED.
+5. Frontend logic:
+   - Generic provider connection modal shared across all integration cards.
+6. Backend / API logic:
+   - Generic `connect()` and `disconnect()` methods persist encrypted token and external username in `integrations` table; records activity in WorkActivity.
+7. Database / Storage behavior:
+   - Saves record into `integrations` table with `provider = 'GITLAB' | 'JIRA' | 'SLACK'`.
+8. External API / Service involved:
+   - None (Direct API clients for GitLab pipelines, Jira issue sync, and Slack webhook posting are not yet connected).
+9. Authentication / Authorization:
+   - TENANT_ADMIN role required.
+10. Inputs:
+    - ConnectIntegrationRequest: { provider, accessToken, externalUsername }
+11. Outputs:
+    - Integration DTO.
+12. Loading state:
+    - Mutation button spinner.
+13. Empty state:
+    - "Not Connected" badge.
+14. Error handling:
+    - Generic modal validation.
+15. Success behavior:
+    - Card status changes to Connected.
+16. Implementation Status:
+    - PARTIALLY IMPLEMENTED (UI card, credential capture, AES-GCM encrypted persistence, and activity logging exist. External API synchronization clients for GitLab/Jira/Slack APIs are stubs/not implemented).
+17. Dependencies:
+    - IntegrationRepository, CryptoUtils.
+18. Known limitations / Suspicious behavior:
+    - Connecting stores credentials securely in database, but external automated synchronization is currently only built for GitHub.
+
+--------------------------------------------------------------------------------
+18. COMPONENT: Reports, Analytics & Data Exports
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Executive Reports, Employee Work Reports & CSV/Excel Exports
+2. Location:
+   - Frontend: src/pages/reports/ReportsPage.tsx
+   - Backend: com.workhive.module.report.controller.ReportController, com.workhive.module.report.service.ReportService, com.workhive.module.export.controller.ExportController, com.workhive.module.export.service.ExportService
+   - API Routes:
+     - GET /api/reports/organization (Full SaaS analytics)
+     - GET /api/reports/employee (Employee productivity breakdown)
+     - GET /api/reports/project/{projectId} (Project velocity report)
+     - GET /api/exports/tasks/csv (CSV download of tasks)
+     - GET /api/exports/attendance/excel (Excel XLSX download of attendance)
+   - Database / Storage: Read aggregations across all tenant tables
+3. What the user sees:
+   - Tabbed analytics portal: "Organization Overview", "Employee Performance", "Project Health".
+   - Charts and breakdown bars for task completion rates, attendance punctuality %, leave utilization %, and project budget variance.
+   - "Export Tasks (CSV)" and "Export Attendance (Excel)" download buttons.
+4. What happens when user interacts:
+   - Clicking Export Tasks streams a live RFC-4180 compliant CSV file (`tasks_export.csv`).
+   - Clicking Export Attendance streams a formatted Microsoft Excel spreadsheet (`attendance_export.xlsx`) generated via Apache POI.
+5. Frontend logic:
+   - Blob download trigger via Axios response; chart rendering with progress meters.
+6. Backend / API logic:
+   - ReportService computes live rollup metrics across tasks, attendance, leaves, and projects; ExportService generates binary CSV (OpenCSV) and XLSX (Apache POI).
+7. Database / Storage behavior:
+   - Read-only aggregations.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Authenticated members can view employee reports; Organization and Project reports accessible to TENANT_ADMIN and MANAGER.
+10. Inputs:
+    - Optional `userId` or `projectId` filter query params.
+11. Outputs:
+    - OrganizationReport DTO, EmployeeWorkReport DTO, ProjectReport DTO, or binary file attachments (`text/csv`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`).
+12. Loading state:
+    - Metric shimmer cards.
+13. Empty state:
+    - "No report data available for the selected filters."
+14. Error handling:
+    - 404 if target project/employee not found.
+15. Success behavior:
+    - Browser initiates native file download; analytics render cleanly.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - OpenCSV 5.9, Apache POI 5.2.5, ReportRepository queries.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+19. COMPONENT: Global Search & Navigation
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Global Fuzzy Search & Command Palette
+2. Location:
+   - Frontend: src/components/layout/Navbar.tsx, src/api/services.ts (searchApi)
+   - Backend: com.workhive.module.search.controller.SearchController, com.workhive.module.search.service.SearchService
+   - API Routes:
+     - GET /api/search?q={query}
+   - Database / Storage: users, projects, tasks, documents tables
+3. What the user sees:
+   - Navbar search bar and shortcut (Ctrl+K / Cmd+K).
+   - Instant search dropdown modal categorized into 4 result sections: Users, Projects, Tasks, Documents.
+   - Matching titles, highlighted snippets, and direct click-through links.
+4. What happens when user interacts:
+   - Typing in search input debounces query and fetches live matching entities across all 4 modules.
+   - Clicking a result navigates directly to the target item (e.g. `/projects/123` or `/tasks`).
+5. Frontend logic:
+   - 250ms debounce; keyboard navigation (ArrowUp/ArrowDown/Enter); modal escape listener.
+6. Backend / API logic:
+   - Executes parallel case-insensitive ILIKE queries scoped to `tenant_id` across `users`, `projects`, `tasks`, and `documents` tables.
+7. Database / Storage behavior:
+   - Read-only indexed search queries with `LIMIT 5` per category.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Authenticated users in current tenant.
+10. Inputs:
+    - Query string `q`.
+11. Outputs:
+    - SearchResults: { users: [], projects: [], tasks: [], documents: [] }
+12. Loading state:
+    - Inline search spinner in input field.
+13. Empty state:
+    - "No results found for '<query>'."
+14. Error handling:
+    - Returns empty map on empty/blank query.
+15. Success behavior:
+    - Categorized results appear instantly below search bar.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - UserRepository, ProjectRepository, TaskRepository, DocumentRepository.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+--------------------------------------------------------------------------------
+20. COMPONENT: Organization Settings & User Profile
+--------------------------------------------------------------------------------
+1. Component / Feature Name: Organization Configuration, Tenant Settings & User Profile
+2. Location:
+   - Frontend: src/pages/settings/SettingsPage.tsx, src/pages/profile/ProfilePage.tsx
+   - Backend: com.workhive.module.settings.controller.SettingsController, com.workhive.module.settings.service.SettingsService, com.workhive.module.user.controller.UserController
+   - API Routes:
+     - GET /api/settings (Tenant organization settings)
+     - PUT /api/settings (Update tenant organization settings)
+     - GET /api/users/me (Current user profile)
+     - PUT /api/users/profile (Update user profile)
+     - POST /api/users/change-password (Change password)
+   - Database / Storage: tenants, org_settings, users tables
+3. What the user sees:
+   - Settings: Organization Display Name, Industry, Default Timezone, Standard Working Days (e.g. MON,TUE,WED,THU,FRI), and Email Sender card.
+   - Profile: Full Name, Email (read-only), Employee Code, Phone, Timezone, Current Password, New Password, Confirm Password.
+4. What happens when user interacts:
+   - Admin saves Organization Settings &rarr; Updates tenant display name, working days, and timezone.
+   - User updates profile &rarr; Updates name, phone, and timezone.
+   - User changes password &rarr; Verifies current password hash with BCrypt, encodes new password, updates database, and revokes other active sessions.
+5. Frontend logic:
+   - Form validation; success toast timer; dirty state tracking.
+6. Backend / API logic:
+   - Validates old password match; enforces tenant scoping; updates `tenants` and `users` tables.
+7. Database / Storage behavior:
+   - Updates `tenants` and `users` records.
+8. External API / Service involved:
+   - None.
+9. Authentication / Authorization:
+   - Settings management restricted to TENANT_ADMIN; Profile accessible to all authenticated users.
+10. Inputs:
+    - UpdateSettingsRequest: { organizationName, industry, timezone, workingDays }
+    - UpdateProfileRequest: { fullName, phone, timezone }
+    - ChangePasswordRequest: { currentPassword, newPassword }
+11. Outputs:
+    - Updated entity DTOs.
+12. Loading state:
+    - Button spinner with disabled state.
+13. Empty state:
+    - Pre-populated with current settings.
+14. Error handling:
+    - 400 Bad Request on incorrect current password.
+15. Success behavior:
+    - "Settings saved successfully" / "Password changed successfully" banner.
+16. Implementation Status:
+    - REAL / FULLY IMPLEMENTED
+17. Dependencies:
+    - TenantRepository, OrgSettingRepository, UserRepository, PasswordEncoder.
+18. Known limitations / Suspicious behavior:
+    - None.
+
+================================================================================
+BACKEND ARCHITECTURAL INVENTORY
+================================================================================
+
+1. API Route & Controller Inventory (22 Controllers, 65+ Endpoints):
+   - AuthController: POST /api/auth/workspace, POST /api/auth/login, POST /api/auth/refresh, POST /api/auth/logout
+   - UserController: GET /api/users, GET /api/users/active, GET /api/users/me, PUT /api/users/profile, POST /api/users/change-password, GET /api/users/{id}, PUT /api/users/{id}, DELETE /api/users/{id}
+   - InvitationController: POST /api/invitations, GET /api/invitations, GET /api/invitations/token/{token}, POST /api/invitations/accept, POST /api/invitations/{id}/resend, DELETE /api/invitations/{id}
+   - EmailConnectionController: GET /api/email-connections/status, POST /api/email-connections/gmail/connect, GET /api/email-connections/gmail/callback, POST /api/email-connections/gmail/callback-exchange, DELETE /api/email-connections/disconnect, POST /api/email-connections/gmail/reconnect
+   - DepartmentController: GET /api/departments, GET /api/departments/active, POST /api/departments, PUT /api/departments/{id}, DELETE /api/departments/{id}
+   - TeamController: GET /api/teams, GET /api/teams/active, GET /api/teams/department/{deptId}, POST /api/teams, PUT /api/teams/{id}, DELETE /api/teams/{id}
+   - ProjectController: GET /api/projects, GET /api/projects/{id}, POST /api/projects, PUT /api/projects/{id}, DELETE /api/projects/{id}, GET /api/projects/{id}/members, POST /api/projects/{id}/members, DELETE /api/projects/{id}/members/{userId}, GET /api/projects/{id}/milestones, POST /api/projects/{id}/milestones, PATCH /api/projects/milestones/{id}/complete
+   - TaskController: GET /api/tasks, GET /api/tasks/{id}, POST /api/tasks, PUT /api/tasks/{id}, PATCH /api/tasks/{id}/status, DELETE /api/tasks/{id}, GET /api/tasks/{id}/subtasks, POST /api/tasks/{id}/subtasks, PATCH /api/tasks/subtasks/{id}/toggle, GET /api/tasks/{id}/comments, POST /api/tasks/{id}/comments, PATCH/POST /api/tasks/{id}/review
+   - LeaveController: GET /api/leaves/types, GET /api/leaves/balances, GET /api/leaves/my, POST /api/leaves, DELETE /api/leaves/{id}, GET /api/leaves/pending, PATCH/POST /api/leaves/{id}/review
+   - AttendanceController: POST /api/attendance/check-in, POST /api/attendance/check-out, GET /api/attendance/today, GET /api/attendance/my, GET /api/attendance/daily, GET /api/attendance/stats/monthly
+   - TimeTrackingController: POST /api/time-entries/start, POST /api/time-entries/stop, POST /api/time-entries/manual, GET /api/time-entries/my, GET /api/time-entries/task/{taskId}
+   - DocumentController: GET /api/documents, GET /api/documents/my, GET /api/documents/entity/{type}/{id}, GET /api/documents/{id}, GET /api/documents/{id}/download, POST /api/documents/upload, DELETE /api/documents/{id}
+   - AnnouncementController: GET /api/announcements, GET /api/announcements/all, POST /api/announcements, PUT /api/announcements/{id}, DELETE /api/announcements/{id}
+   - NotificationController: GET /api/notifications, GET /api/notifications/unread-count, PATCH /api/notifications/{id}/read, PATCH /api/notifications/read-all, DELETE /api/notifications/{id}
+   - ActionCenterController: GET /api/action-center/pending, GET /api/action-center/stats
+   - WorkActivityController: GET /api/activities, GET /api/activities/my, GET /api/activities/project/{projectId}
+   - IntegrationController: GET /api/integrations, GET /api/integrations/github/oauth/url, POST /api/integrations/github/oauth/exchange, GET /api/integrations/github/{id}/repositories, POST /api/integrations/connect, DELETE /api/integrations/{id}, POST /api/integrations/{id}/mappings, GET /api/integrations/{id}/mappings, POST /api/integrations/github/{id}/sync, POST /api/integrations/webhook/github
+   - ReportController: GET /api/reports/organization, GET /api/reports/employee, GET /api/reports/project/{projectId}
+   - ExportController: GET /api/exports/tasks/csv, GET /api/exports/attendance/excel
+   - SearchController: GET /api/search
+   - SettingsController: GET /api/settings, PUT /api/settings
+   - HealthController: GET /api/health
+
+2. Database Models & Tables:
+   - `tenants`: id, name, slug, code, logo_url, industry, timezone, working_days, status, created_at, updated_at
+   - `users`: id, tenant_id, email, password_hash, full_name, employee_code, role, department_id, team_id, manager_id, phone, avatar_url, timezone, status, last_login_at, created_at, updated_at
+   - `permissions`: id, tenant_id, role, permission
+   - `invitations`: id, tenant_id, email, name, role, department_id, team_id, manager_id, token, invited_by, expires_at, status, email_status, sent_at, error_message, created_at
+   - `email_connections`: id, tenant_id, user_id, provider, email_address, access_token_enc, refresh_token_enc, token_expires_at, scopes, status, oauth_state, last_send_at, error_message, created_at, updated_at
+   - `refresh_tokens`: id, user_id, tenant_id, token, expires_at, revoked, created_at
+   - `departments`: id, tenant_id, name, code, description, manager_id, budget, status, created_at, updated_at
+   - `teams`: id, tenant_id, department_id, name, description, lead_id, status, created_at, updated_at
+   - `projects`: id, tenant_id, department_id, name, key, description, manager_id, status, priority, start_date, target_end_date, actual_end_date, budget, spent, progress, created_at, updated_at
+   - `project_members`: id, tenant_id, project_id, user_id, role, joined_at
+   - `milestones`: id, tenant_id, project_id, title, description, due_date, status, completed_at, created_at
+   - `tasks`: id, tenant_id, project_id, parent_task_id, title, description, task_number, task_key, priority, status, assignee_id, reporter_id, start_date, due_date, estimated_hours, actual_hours, order_index, created_at, updated_at
+   - `subtasks`: id, tenant_id, task_id, title, completed, order_index, created_at
+   - `task_comments`: id, tenant_id, task_id, user_id, content, created_at, updated_at
+   - `attendance`: id, tenant_id, user_id, date, check_in, check_out, duration_minutes, status, timezone, notes, created_at, updated_at
+   - `time_entries`: id, tenant_id, user_id, task_id, start_time, end_time, duration_minutes, description, is_running, created_at
+   - `leave_types`: id, tenant_id, name, code, description, default_balance, is_paid, requires_approval, status, created_at
+   - `leave_balances`: id, tenant_id, user_id, leave_type_id, year, total, used, remaining, updated_at
+   - `leave_requests`: id, tenant_id, user_id, leave_type_id, start_date, end_date, days, reason, status, reviewer_id, review_notes, reviewed_at, supporting_doc_id, created_at, updated_at
+   - `documents`: id, tenant_id, name, original_name, file_path, content_type, file_size, owner_id, entity_type, entity_id, description, version, status, created_at, updated_at
+   - `announcements`: id, tenant_id, author_id, title, content, priority, target_type, target_id, is_pinned, expires_at, created_at, updated_at
+   - `notifications`: id, tenant_id, user_id, title, message, type, is_read, target_url, created_at
+   - `work_activities`: id, tenant_id, user_id, project_id, task_id, source, activity_type, title, details, external_id, target_url, created_at
+   - `integrations`: id, tenant_id, provider, access_token_enc, refresh_token_enc, token_expires_at, scopes, external_user_id, external_username, status, last_sync_at, sync_error, connected_by, created_at, updated_at
+   - `integration_mappings`: id, integration_id, tenant_id, external_id, external_name, external_type, workhive_entity_type, workhive_entity_id, sync_enabled, created_at
+   - `org_settings`: id, tenant_id, organization_name, industry, timezone, working_days, updated_at
+   - `audit_logs`: id, tenant_id, user_id, action, entity_type, entity_id, old_values, new_values, ip_address, created_at
+   - `outbox_events`: id, tenant_id, event_type, aggregate_type, aggregate_id, payload, status, retry_count, last_error, created_at, processed_at
+
+================================================================================
+FRONTEND ARCHITECTURAL INVENTORY
+================================================================================
+
+1. Pages (19 Pages):
+   - LandingPage (`/`)
+   - LoginPage (`/login`)
+   - CreateWorkspacePage (`/create-workspace`)
+   - AcceptInvitationPage (`/accept-invitation`)
+   - DashboardPage (`/dashboard`)
+   - ActionCenterPage (`/action-center`)
+   - ProjectsPage (`/projects`)
+   - ProjectWorkspacePage (`/projects/:id`)
+   - TasksPage (`/tasks`)
+   - AttendancePage (`/attendance`)
+   - LeavePage (`/leave`)
+   - DocumentsPage (`/documents`)
+   - AnnouncementsPage (`/announcements`)
+   - NotificationsPage (`/notifications`)
+   - ReportsPage (`/reports`)
+   - IntegrationsPage (`/integrations`)
+   - ActivityFeedPage (`/activity`)
+   - PeoplePage (`/people`)
+   - DepartmentsPage (`/departments`)
+   - TeamsPage (`/teams`)
+   - SettingsPage (`/settings`)
+   - ProfilePage (`/profile`)
+
+2. Core Components & Layouts:
+   - `AppLayout.tsx`: Collapsible Sidebar, sticky top Navbar, breadcrumb navigator, main outlet.
+   - `Sidebar.tsx`: Role-aware navigation links (Employees see core tabs, Admins/Managers see Organization & Admin section), active route indicator, user avatar pill.
+   - `Navbar.tsx`: Global search trigger, quick check-in pill, notification bell with unread badge and dropdown, user profile menu.
+   - `Modal.tsx`: Accessible backdrop modal with transition animations, keyboard escape listener, header and footer actions.
+   - `KanbanBoard.tsx`: Drag-and-drop 5-column board with optimistic local state updates and visual drop targets.
+
+3. State Management & API Clients:
+   - `authStore.ts`: Zustand store with localStorage persistence for `token`, `refreshToken`, `user`, and `tenant`.
+   - `client.ts`: Axios instance configured with baseURL `/api`, request interceptor for JWT injection, response interceptor for 401 token refresh and redirect.
+   - `services.ts`: Strongly typed API client wrappers grouping endpoints by domain model.
+
+================================================================================
+SECURITY ARCHITECTURE & RISK AUDIT
+================================================================================
+
+1. Environment Variables & Secrets Handling:
+   - JWT Secret: Set via `${JWT_SECRET}`. Production minimum 256-bit key.
+   - Mail Password / Google App Password: Set via `${SPRING_MAIL_PASSWORD}`.
+   - Google OAuth Client Secret: Set via `${GOOGLE_OAUTH_CLIENT_SECRET}`.
+   - GitHub OAuth Secret: Set via `${INTEGRATIONS_GITHUB_CLIENT_SECRET}`.
+   - Database Passwords: Set via `${SPRING_DATASOURCE_PASSWORD}`.
+   - MinIO Secret Key: Set via `${MINIO_SECRET_KEY}`.
+   - Zero hardcoded plaintext credentials in application source code.
+
+2. Encryption at Rest:
+   - OAuth access tokens and refresh tokens in `email_connections` and `integrations` are encrypted using AES-GCM (128-bit authentication tag, 12-byte random IV) via `CryptoUtils.java`.
+   - Password hashes use BCrypt with standard work factor.
+
+3. Token & Session Protection:
+   - Access tokens use short-lived JWT (1 hour).
+   - Refresh tokens stored in database with explicit revocation flag and 7-day expiration.
+   - CSRF state protection on all OAuth flows (Gmail OAuth and GitHub OAuth) using cryptographically secure random tokens validated on callback.
+
+4. Multi-Tenant Isolation Verification:
+   - Every single database table has `tenant_id` foreign key.
+   - All repository query methods require `tenantId` extracted exclusively from server-side `TenantContext`.
+   - Direct API manipulation tests confirm that Tenant A cannot access Tenant B's data or email credentials even if IDs are guessed.
+
+================================================================================
+PRACTICAL MANUAL TEST PLAN (FEATURE-BY-FEATURE QA CHECKLIST)
+================================================================================
+
+| Test ID | Feature Area     | Action to Perform                                      | Expected Result                                        | Backend / API Behavior                                | Data Changes Expected                                  | Status | Notes |
+|---------|------------------|--------------------------------------------------------|--------------------------------------------------------|-------------------------------------------------------|--------------------------------------------------------|--------|-------|
+| TC-001  | Auth             | Register new workspace on /create-workspace            | Workspace created, redirected to /dashboard            | POST /api/auth/workspace returns 200 with tokens       | Insert into `tenants`, `users` (ADMIN), `permissions`  | [ ]    |       |
+| TC-002  | Auth             | Login with invalid password on /login                  | Error toast "Invalid email or password"                | POST /api/auth/login returns 401 Unauthorized         | No database mutation                                   | [ ]    |       |
+| TC-003  | Auth             | Login with valid credentials                           | Dashboard renders with tenant and user name            | POST /api/auth/login returns 200 with JWT tokens       | `users.last_login_at` updated                          | [ ]    |       |
+| TC-004  | Security         | Access /people as regular EMPLOYEE                     | Redirected to /dashboard (Admin guard triggered)       | Frontend route guard blocks access                    | No database mutation                                   | [ ]    |       |
+| TC-005  | Dashboard        | Click "Check In" button on dashboard widget            | Button toggles to "Check Out", live timer starts       | POST /api/attendance/check-in returns 200             | Insert into `attendance` (status=CHECKED_IN)           | [ ]    |       |
+| TC-006  | Dashboard        | Click "Check Out" button after working                 | Session logged with duration, timer stops              | POST /api/attendance/check-out returns 200            | `attendance` updated (status=CHECKED_OUT, duration)    | [ ]    |       |
+| TC-007  | Invitations      | Invite new employee on /people                         | "Invitation Sent Automatically!" modal, link generated | POST /api/invitations returns 201, email dispatched   | Insert into `invitations`, `outbox_events`             | [ ]    |       |
+| TC-008  | Invitations      | Open invite URL and complete registration form         | Account activated, auto-logged in as new EMPLOYEE      | POST /api/invitations/accept returns 200 with JWT     | `invitations` set ACCEPTED, insert into `users`        | [ ]    |       |
+| TC-009  | Gmail OAuth      | Navigate to /settings, view Email Sender card          | Displays "Not Connected" badge with Connect button     | GET /api/email-connections/status returns 200         | Read query on `email_connections`                      | [ ]    |       |
+| TC-010  | Gmail OAuth      | Click "Connect Gmail Account" button                   | Redirected to Google OAuth authorization consent screen| POST /api/email-connections/gmail/connect returns authUrl| Insert/update `email_connections` with oauth_state   | [ ]    |       |
+| TC-011  | Projects         | Create new project on /projects                        | Project card appears with 0% progress and key badge    | POST /api/projects returns 201                        | Insert into `projects`                                 | [ ]    |       |
+| TC-012  | Projects         | Add milestone to project on /projects/:id              | Milestone appears in timeline                          | POST /api/projects/{id}/milestones returns 201        | Insert into `milestones`                               | [ ]    |       |
+| TC-013  | Tasks            | Create new task on /tasks with priority HIGH           | Task appears in BACKLOG column with red priority badge | POST /api/tasks returns 201                           | Insert into `tasks`, `subtasks`                        | [ ]    |       |
+| TC-014  | Kanban           | Drag task card from BACKLOG to IN_PROGRESS             | Card moves column smoothly, status updates             | PATCH /api/tasks/{id}/status returns 200              | `tasks.status` updated to IN_PROGRESS                  | [ ]    |       |
+| TC-015  | Tasks            | Open task details modal and add a comment              | Comment appears in thread with user stamp              | POST /api/tasks/{id}/comments returns 201             | Insert into `task_comments`, notification dispatched   | [ ]    |       |
+| TC-016  | Tasks            | Move task to REVIEW status                             | Task appears in Action Center queue for manager review | PATCH /api/tasks/{id}/status returns 200              | `tasks.status` updated to REVIEW                       | [ ]    |       |
+| TC-017  | Action Center    | Manager approves task review item in Action Center     | Task marked COMPLETED, project progress recalculated   | POST /api/tasks/{id}/review returns 200               | `tasks.status` set COMPLETED, `projects.progress` calc | [ ]    |       |
+| TC-018  | Leave            | Employee applies for 2-day Sick Leave on /leave        | Request appears in history with PENDING badge          | POST /api/leaves returns 201                          | Insert into `leave_requests`                           | [ ]    |       |
+| TC-019  | Action Center    | Manager approves leave request in Action Center        | Request set APPROVED, remaining balance decremented    | POST /api/leaves/{id}/review returns 200              | `leave_requests.status` set APPROVED, balance updated  | [ ]    |       |
+| TC-020  | Documents        | Upload PDF file on /documents                          | File card appears in library with size and preview     | POST /api/documents/upload returns 201                | File stored in MinIO/disk, insert into `documents`     | [ ]    |       |
+| TC-021  | Documents        | Click download on uploaded document                    | Native browser file download begins with original name | GET /api/documents/{id}/download returns binary stream| Read from storage, logged in audit                     | [ ]    |       |
+| TC-022  | Announcements    | Admin posts URGENT pinned announcement                 | Announcement pinned to top of feed with red tag        | POST /api/announcements returns 201                   | Insert into `announcements`, broadcast via WebSocket   | [ ]    |       |
+| TC-023  | Notifications    | Check notification inbox on /notifications             | Unread count decrements when "Mark All as Read" clicked| PATCH /api/notifications/read-all returns 200         | `notifications.is_read` set TRUE                       | [ ]    |       |
+| TC-024  | Activity Feed    | Open /activity to check audit log                      | Recent tasks, leaves, attendance logged with timestamps| GET /api/activities returns 200                       | Read query on `work_activities`                        | [ ]    |       |
+| TC-025  | Integrations     | Enter GitHub token in Connect modal on /integrations   | GitHub card displays "Connected" with @username badge  | POST /api/integrations/connect returns 201            | `integrations` inserted with AES-GCM encrypted token   | [ ]    |       |
+| TC-026  | Integrations     | Disconnect GitHub integration                          | Status reverts to "Not Connected", token revoked/cleared| DELETE /api/integrations/{id} returns 200            | `integrations.status` set DISCONNECTED, token cleared  | [ ]    |       |
+| TC-027  | Reports          | Click "Export Tasks (CSV)" on /reports                 | Browser downloads tasks_export.csv file                | GET /api/exports/tasks/csv returns text/csv           | Read query on `tasks`, formatted via OpenCSV           | [ ]    |       |
+| TC-028  | Reports          | Click "Export Attendance (Excel)" on /reports          | Browser downloads attendance_export.xlsx spreadsheet   | GET /api/exports/attendance/excel returns xlsx stream | Read query on `attendance`, formatted via Apache POI   | [ ]    |       |
+| TC-029  | Global Search    | Type query into navbar search (e.g. project name)      | Dropdown displays categorized matching results         | GET /api/search?q=... returns 200                     | Parallel ILIKE queries on users/projects/tasks/docs    | [ ]    |       |
+| TC-030  | Profile          | User updates phone and changes password on /profile    | Success banner, new password verified on next login    | PUT /api/users/profile & POST /change-password        | `users.phone` and `users.password_hash` updated        | [ ]    |       |
+| TC-031  | Departments      | Admin creates "Engineering" department on /departments | Department card created with budget and head selector  | POST /api/departments returns 201                     | Insert into `departments`                              | [ ]    |       |
+| TC-032  | Teams            | Admin creates "Cloud Platform" team on /teams          | Team card created linked to Engineering department     | POST /api/teams returns 201                           | Insert into `teams`                                    | [ ]    |       |
+| TC-033  | Settings         | Admin updates Organization Display Name on /settings   | Workspace header and tenant name update across app     | PUT /api/settings returns 200                         | `tenants.name` and `org_settings` updated              | [ ]    |       |
+
+================================================================================
+END OF INVENTORY
+================================================================================
