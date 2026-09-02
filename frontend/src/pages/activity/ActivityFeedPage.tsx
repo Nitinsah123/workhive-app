@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, userApi, exportApi } from '../../api/services';
+import { API_BASE_URL } from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -58,8 +59,7 @@ export const ActivityFeedPage: React.FC = () => {
     if (!tenantId) return;
 
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
-      const wsUrl = apiBase.replace(/\/api\/?$/, '') + '/ws';
+      const wsUrl = API_BASE_URL.replace(/\/api\/?$/, '') + '/ws';
       const client = new Client({
         webSocketFactory: () => new SockJS(wsUrl),
         reconnectDelay: 5000,

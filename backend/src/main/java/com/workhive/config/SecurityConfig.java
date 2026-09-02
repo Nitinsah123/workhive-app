@@ -77,7 +77,8 @@ public class SecurityConfig {
                 "http://localhost:*",
                 "http://127.0.0.1:*",
                 "https://*.railway.app",
-                "https://*.up.railway.app"
+                "https://*.up.railway.app",
+                "https://*.onrender.com"
         ));
         if (frontendUrl != null && !frontendUrl.isBlank()) {
             String trimmed = frontendUrl.trim().replaceAll("/+$", "");

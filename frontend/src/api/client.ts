@@ -1,7 +1,19 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const getApiBaseUrl = (): string => {
+  let url = import.meta.env.VITE_API_BASE_URL;
+  if (url) {
+    url = url.replace('zg3/.onrender.com', 'zg37.onrender.com');
+    return url.replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    return 'https://workhive-backend-zg37.onrender.com/api';
+  }
+  return '/api';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

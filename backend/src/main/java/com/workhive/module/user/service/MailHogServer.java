@@ -35,6 +35,9 @@ public class MailHogServer {
 
     private static final Logger log = LoggerFactory.getLogger(MailHogServer.class);
 
+    @Value("${mailhog.enabled:false}")
+    private boolean enabled;
+
     @Value("${mailhog.smtp.port:1025}")
     private int smtpPort;
 
@@ -64,6 +67,10 @@ public class MailHogServer {
 
     @PostConstruct
     public void start() {
+        if (!enabled) {
+            log.info("MailHog server socket listener disabled (mailhog.enabled=false). In-memory mock buffer active.");
+            return;
+        }
         threadPool = Executors.newCachedThreadPool();
         running = true;
 
