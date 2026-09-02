@@ -1,0 +1,40 @@
+databases:
+  - name: workhive-postgres
+    databaseName: workhive
+    user: workhive
+    plan: free
+
+services:
+  # Backend Spring Boot Service
+  - type: web
+    name: workhive-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: workhive-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        value: workhive_production_super_secret_jwt_key_2024_minimum_256_bits_long
+      - key: JWT_EXPIRATION
+        value: "3600000"
+      - key: JWT_REFRESH_EXPIRATION
+        value: "604800000"
+
+  # Frontend Vite React Static Site
+  - type: web
+    name: workhive-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
