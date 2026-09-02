@@ -57,6 +57,7 @@ export const ActivityFeedPage: React.FC = () => {
     const tenantId = tenant?.id;
     if (!tenantId) return;
 
+    try {
       const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
       const wsUrl = apiBase.replace(/\/api\/?$/, '') + '/ws';
       const client = new Client({
