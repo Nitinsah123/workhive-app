@@ -479,15 +479,15 @@ public class EmailService {
     public String getCentralMailPassword() {
         String envPass = System.getenv("SPRING_MAIL_PASSWORD");
         if (envPass != null && !envPass.isBlank()) {
-            return envPass.trim();
+            return envPass.trim().replace(" ", "");
         }
         String sysPass = System.getProperty("SPRING_MAIL_PASSWORD");
         if (sysPass != null && !sysPass.isBlank()) {
-            return sysPass.trim();
+            return sysPass.trim().replace(" ", "");
         }
         String propPass = System.getProperty("spring.mail.password");
         if (propPass != null && !propPass.isBlank()) {
-            return propPass.trim();
+            return propPass.trim().replace(" ", "");
         }
         return null;
     }
