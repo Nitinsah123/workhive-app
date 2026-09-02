@@ -37,6 +37,20 @@ class FlywaySchemaValidationTest {
     }
 
     @Test
+    @DisplayName("Verify V5 migration file exists and contains correct PostgreSQL DDL for org_settings and task_submissions")
+    void testV5MigrationFileContent() throws Exception {
+        try (InputStream is = getClass().getResourceAsStream("/db/migration/V5__org_settings_and_task_submissions.sql")) {
+            assertNotNull(is, "V5__org_settings_and_task_submissions.sql must exist on the classpath");
+            String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+
+            assertTrue(content.contains("ALTER TABLE org_settings ADD COLUMN IF NOT EXISTS setting_value"),
+                    "Must add setting_value column to org_settings");
+            assertTrue(content.contains("CREATE TABLE IF NOT EXISTS task_submissions"),
+                    "Must create task_submissions table");
+        }
+    }
+
+    @Test
     @DisplayName("Verify V4 migration executes on invitations table and satisfies Invitation entity fields")
     void testV4MigrationExecutionAndBackfill() throws Exception {
         String dbName = "invitations_v4_test_" + System.currentTimeMillis();
