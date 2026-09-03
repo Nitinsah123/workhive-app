@@ -21,6 +21,9 @@ public class DepartmentService {
     private final DepartmentRepository departmentRepository;
     private final AuditService auditService;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     public DepartmentService(DepartmentRepository departmentRepository, AuditService auditService) {
         this.departmentRepository = departmentRepository;
         this.auditService = auditService;
@@ -28,12 +31,17 @@ public class DepartmentService {
 
     public Page<Department> getDepartments(Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
-        return departmentRepository.findByTenantId(tenantId, pageable);
+        return departmentRepository.findByTenantIdAndStatusNot(tenantId, "ARCHIVED", pageable);
     }
 
     public List<Department> getActiveDepartments() {
         UUID tenantId = TenantContext.requireTenantId();
         return departmentRepository.findByTenantIdAndStatus(tenantId, "ACTIVE");
+    }
+
+    public List<Department> getArchivedDepartments() {
+        UUID tenantId = TenantContext.requireTenantId();
+        return departmentRepository.findByTenantIdAndStatus(tenantId, "ARCHIVED");
     }
 
     public Department getDepartment(UUID id) {
@@ -83,12 +91,70 @@ public class DepartmentService {
     }
 
     @Transactional
+    public void archiveDepartment(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can archive departments");
+        }
+
+        Department department = getDepartment(id);
+        department.setStatus("ARCHIVED");
+        departmentRepository.save(department);
+        auditService.log(tenantId, userId, "DEPARTMENT_ARCHIVED", "DEPARTMENT", department.getId(), null, null);
+    }
+
+    @Transactional
+    public void unarchiveDepartment(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can restore departments");
+        }
+
+        Department department = getDepartment(id);
+        department.setStatus("ACTIVE");
+        departmentRepository.save(department);
+        auditService.log(tenantId, userId, "DEPARTMENT_RESTORED", "DEPARTMENT", department.getId(), null, null);
+    }
+
+    @Transactional
+    public void permanentDeleteDepartment(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can permanently delete departments");
+        }
+
+        Department department = getDepartment(id);
+
+        // Safely detach foreign key references
+        entityManager.createNativeQuery("UPDATE teams SET department_id = NULL WHERE department_id = :did AND tenant_id = :tid")
+                .setParameter("did", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE users SET department_id = NULL WHERE department_id = :did AND tenant_id = :tid")
+                .setParameter("did", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE projects SET department_id = NULL WHERE department_id = :did AND tenant_id = :tid")
+                .setParameter("did", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE invitations SET department_id = NULL WHERE department_id = :did AND tenant_id = :tid")
+                .setParameter("did", id).setParameter("tid", tenantId).executeUpdate();
+
+        departmentRepository.delete(department);
+        auditService.log(tenantId, userId, "DEPARTMENT_PERMANENTLY_DELETED", "DEPARTMENT", id, null, null);
+    }
+
+    @Transactional
     public void deleteDepartment(UUID id) {
         UUID tenantId = TenantContext.requireTenantId();
         UUID userId = TenantContext.requireUserId();
 
         Department department = getDepartment(id);
-        department.setStatus("INACTIVE"); // Soft-deactivation
+        department.setStatus("INACTIVE");
         departmentRepository.save(department);
         auditService.log(tenantId, userId, "DEPARTMENT_DEACTIVATED", "DEPARTMENT", department.getId(), null, null);
     }

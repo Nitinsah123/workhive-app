@@ -19,6 +19,7 @@ import {
   Building2,
   Briefcase,
   UserCheck,
+  Archive,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -50,7 +51,12 @@ export const Sidebar: React.FC = () => {
           { to: '/teams', label: 'Teams', icon: Briefcase },
         ]
       : []),
-    ...(isAdmin ? [{ to: '/settings', label: 'Settings', icon: Settings }] : []),
+    ...(isAdmin
+      ? [
+          { to: '/archive', label: 'Archive', icon: Archive },
+          { to: '/settings', label: 'Settings', icon: Settings },
+        ]
+      : []),
   ];
 
   return (

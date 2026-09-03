@@ -31,6 +31,9 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     public UserService(UserRepository userRepository, TenantRepository tenantRepository,
                        com.workhive.module.department.repository.DepartmentRepository departmentRepository,
                        com.workhive.module.team.repository.TeamRepository teamRepository,
@@ -49,7 +52,12 @@ public class UserService {
 
     public Page<User> getUsers(Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
-        return userRepository.findByTenantId(tenantId, pageable);
+        return userRepository.findByTenantIdAndStatusNot(tenantId, "ARCHIVED", pageable);
+    }
+
+    public List<User> getArchivedUsers() {
+        UUID tenantId = TenantContext.requireTenantId();
+        return userRepository.findByTenantIdAndStatus(tenantId, "ARCHIVED");
     }
 
     public List<User> getActiveUsers() {
@@ -263,9 +271,145 @@ public class UserService {
     }
 
     @Transactional
+    public void archiveUser(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID operatorId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new BadRequestException("Only Tenant Admins can archive users");
+        }
+
+        if (operatorId.equals(id)) {
+            throw new BadRequestException("You cannot archive your own account");
+        }
+
+        User user = getUser(id);
+
+        if ("TENANT_ADMIN".equalsIgnoreCase(user.getRole())) {
+            long activeAdmins = userRepository.countByTenantIdAndRole(tenantId, "TENANT_ADMIN");
+            if (activeAdmins <= 1) {
+                throw new BadRequestException("Cannot archive the only active Tenant Admin in this workspace. Please assign another Admin first.");
+            }
+        }
+
+        user.setStatus("ARCHIVED");
+        userRepository.save(user);
+
+        // Disconnect email connections safely
+        if (emailConnectionRepository != null) {
+            emailConnectionRepository.findByTenantIdAndUserId(tenantId, id).ifPresent(conn -> {
+                conn.setStatus("DISCONNECTED");
+                emailConnectionRepository.save(conn);
+            });
+        }
+
+        auditService.log(tenantId, operatorId, "USER_ARCHIVED", "USER", user.getId(), null, null);
+    }
+
+    @Transactional
+    public void unarchiveUser(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID operatorId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new BadRequestException("Only Tenant Admins can restore users");
+        }
+
+        User user = getUser(id);
+        user.setStatus("ACTIVE");
+        userRepository.save(user);
+
+        auditService.log(tenantId, operatorId, "USER_RESTORED", "USER", user.getId(), null, null);
+    }
+
+    @Transactional
+    public void permanentDeleteUser(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID operatorId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new BadRequestException("Only Tenant Admins can permanently delete users");
+        }
+
+        if (operatorId.equals(id)) {
+            throw new BadRequestException("You cannot delete your own account");
+        }
+
+        User user = getUser(id);
+
+        if ("TENANT_ADMIN".equalsIgnoreCase(user.getRole())) {
+            long activeAdmins = userRepository.countByTenantIdAndRole(tenantId, "TENANT_ADMIN");
+            if (activeAdmins <= 1) {
+                throw new BadRequestException("Cannot delete the only Tenant Admin in this workspace. Please assign another Admin first.");
+            }
+        }
+
+        // 1. Detach/reassign foreign keys in departments and teams
+        entityManager.createNativeQuery("UPDATE departments SET manager_id = NULL WHERE manager_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE teams SET lead_id = NULL WHERE lead_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+
+        // 2. Detach/reassign in projects and tasks
+        entityManager.createNativeQuery("UPDATE projects SET owner_id = :adminId WHERE owner_id = :uid AND tenant_id = :tid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE projects SET manager_id = NULL WHERE manager_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE tasks SET assignee_id = NULL WHERE assignee_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE tasks SET reviewer_id = NULL WHERE reviewer_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE tasks SET creator_id = :adminId WHERE creator_id = :uid AND tenant_id = :tid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+
+        // 3. User hierarchy and invitations
+        entityManager.createNativeQuery("UPDATE users SET manager_id = NULL WHERE manager_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE invitations SET manager_id = NULL WHERE manager_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE invitations SET invited_by = :adminId WHERE invited_by = :uid AND tenant_id = :tid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+
+        // 4. Other dependent entities
+        entityManager.createNativeQuery("DELETE FROM project_members WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM refresh_tokens WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM email_connections WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM notifications WHERE recipient_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM leave_balances WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE leave_requests SET reviewer_id = NULL WHERE reviewer_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE task_submissions SET reviewed_by = NULL WHERE reviewed_by = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE task_submissions SET submitted_by = :adminId WHERE submitted_by = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE task_comments SET author_id = :adminId WHERE author_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE documents SET uploaded_by = :adminId WHERE uploaded_by = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE document_versions SET author_id = :adminId WHERE author_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE announcements SET author_id = :adminId WHERE author_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE audit_logs SET user_id = NULL WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // 5. Delete the user
+        userRepository.delete(user);
+
+        auditService.log(tenantId, operatorId, "USER_PERMANENTLY_DELETED", "USER", id, null, null);
+    }
+
+    @Transactional
     public void deleteUser(UUID id) {
-        // Safe soft-deletion preserving historical data
-        deactivateUser(id);
+        archiveUser(id);
     }
 
     public String generateEmployeeCode(UUID tenantId, String companyCode, String role) {

@@ -21,6 +21,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmailAndTenantId(String email, UUID tenantId);
 
     Page<User> findByTenantIdAndStatusNot(UUID tenantId, String status, Pageable pageable);
+    Page<User> findByTenantIdAndStatus(UUID tenantId, String status, Pageable pageable);
 
     Page<User> findByTenantId(UUID tenantId, Pageable pageable);
 

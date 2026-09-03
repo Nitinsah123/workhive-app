@@ -39,6 +39,8 @@ export const TeamsPage: React.FC = () => {
   // Delete/Archive State
   const [teamToArchive, setTeamToArchive] = useState<any | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [teamToDelete, setTeamToDelete] = useState<any | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -84,15 +86,30 @@ export const TeamsPage: React.FC = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => teamApi.delete(id),
+    mutationFn: (id: string) => teamApi.archive(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams-data'] });
       queryClient.invalidateQueries({ queryKey: ['teams-active'] });
+      queryClient.invalidateQueries({ queryKey: ['archive-summary'] });
       setTeamToArchive(null);
       setArchiveError(null);
     },
     onError: (err: any) => {
       setArchiveError(err.response?.data?.message || err.message || 'Failed to archive team');
+    },
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: string) => teamApi.permanentDelete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams-data'] });
+      queryClient.invalidateQueries({ queryKey: ['teams-active'] });
+      queryClient.invalidateQueries({ queryKey: ['archive-summary'] });
+      setTeamToDelete(null);
+      setDeleteError(null);
+    },
+    onError: (err: any) => {
+      setDeleteError(err.response?.data?.message || err.message || 'Failed to permanently delete team');
     },
   });
 
@@ -276,17 +293,31 @@ export const TeamsPage: React.FC = () => {
                     </button>
 
                     {team.status === 'ACTIVE' && (
-                      <button
-                        onClick={() => {
-                          setArchiveError(null);
-                          setTeamToArchive(team);
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-rose-500/20"
-                        title="Archive team"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        <span>Archive</span>
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setArchiveError(null);
+                            setTeamToArchive(team);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-amber-500/20"
+                          title="Archive team"
+                        >
+                          <Archive className="w-3 h-3" />
+                          <span>Archive</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setDeleteError(null);
+                            setTeamToDelete(team);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-rose-500/20"
+                          title="Delete Permanently"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -530,10 +561,63 @@ export const TeamsPage: React.FC = () => {
                 type="button"
                 disabled={deleteMutation.isPending}
                 onClick={() => deleteMutation.mutate(teamToArchive.id)}
+                className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-lg shadow-amber-600/25 flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>{deleteMutation.isPending ? 'Archiving...' : 'Confirm Archive'}</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Permanently Modal */}
+      {teamToDelete && (
+        <Modal
+          isOpen={!!teamToDelete}
+          onClose={() => setTeamToDelete(null)}
+          title={`Delete Permanently — ${teamToDelete.name}`}
+        >
+          <div className="space-y-4">
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-2">
+              <div className="font-bold flex items-center gap-1.5 text-rose-400">
+                <Trash2 className="w-4 h-4" />
+                <span>Permanent Squad Deletion</span>
+              </div>
+              <p>
+                Permanently deleting squad <strong>{teamToDelete.name}</strong> will remove it from the organization entirely.
+                All user and project assignments will be safely unlinked.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-1">
+              <div>• Record will NOT appear in Archive.</div>
+              <div>• Cannot be undone or recovered.</div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3">
+              <button
+                type="button"
+                onClick={() => setTeamToDelete(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={permanentDeleteMutation.isPending}
+                onClick={() => permanentDeleteMutation.mutate(teamToDelete.id)}
                 className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/25 flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{deleteMutation.isPending ? 'Archiving...' : 'Confirm Archive'}</span>
+                <span>{permanentDeleteMutation.isPending ? 'Deleting...' : 'Delete Permanently'}</span>
               </button>
             </div>
           </div>

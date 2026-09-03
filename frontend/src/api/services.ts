@@ -12,6 +12,10 @@ export const departmentApi = {
   create: (data: any) => api.post<Department>('/departments', data),
   update: (id: string, data: any) => api.put<Department>(`/departments/${id}`, data),
   delete: (id: string) => api.delete(`/departments/${id}`),
+  archive: (id: string) => api.post(`/departments/${id}/archive`),
+  restore: (id: string) => api.post(`/departments/${id}/restore`),
+  permanentDelete: (id: string) => api.delete(`/departments/${id}/permanent`),
+  getArchived: () => api.get<Department[]>('/departments/archived'),
 };
 
 export const teamApi = {
@@ -21,6 +25,10 @@ export const teamApi = {
   create: (data: any) => api.post<Team>('/teams', data),
   update: (id: string, data: any) => api.put<Team>(`/teams/${id}`, data),
   delete: (id: string) => api.delete(`/teams/${id}`),
+  archive: (id: string) => api.post(`/teams/${id}/archive`),
+  restore: (id: string) => api.post(`/teams/${id}/restore`),
+  permanentDelete: (id: string) => api.delete(`/teams/${id}/permanent`),
+  getArchived: () => api.get<Team[]>('/teams/archived'),
 };
 
 export const userApi = {
@@ -33,12 +41,22 @@ export const userApi = {
   changePassword: (data: any) => api.post('/users/change-password', data),
   deactivate: (id: string) => api.delete(`/users/${id}`),
   reactivate: (id: string) => api.post(`/users/${id}/reactivate`),
+  archive: (id: string) => api.post(`/users/${id}/archive`),
+  restore: (id: string) => api.post(`/users/${id}/restore`),
+  permanentDelete: (id: string) => api.delete(`/users/${id}/permanent`),
+  getArchived: () => api.get<any[]>('/users/archived'),
   invite: (data: any) => api.post<any>('/invitations', data),
   getInvitations: () => api.get<{ content: any[] }>('/invitations'),
   getInvitationDetails: (token: string) => api.get<any>(`/invitations/token/${token}`),
   resendInvitation: (id: string) => api.post<any>(`/invitations/${id}/resend`),
   revokeInvitation: (id: string) => api.delete(`/invitations/${id}`),
   acceptInvitation: (data: any) => api.post<AuthResponse>('/invitations/accept', data),
+};
+
+export const archiveApi = {
+  getAll: (type?: string) => api.get<any>('/archive', { params: type && type !== 'ALL' ? { type } : {} }),
+  restore: (type: string, id: string) => api.post(`/archive/restore/${type}/${id}`),
+  permanentDelete: (type: string, id: string) => api.delete(`/archive/permanent/${type}/${id}`),
 };
 
 export const projectApi = {

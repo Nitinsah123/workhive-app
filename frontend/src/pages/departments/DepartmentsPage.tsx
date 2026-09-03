@@ -32,6 +32,8 @@ export const DepartmentsPage: React.FC = () => {
   // Delete/Archive State
   const [deptToArchive, setDeptToArchive] = useState<any | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [deptToDelete, setDeptToDelete] = useState<any | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -69,14 +71,28 @@ export const DepartmentsPage: React.FC = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => departmentApi.delete(id),
+    mutationFn: (id: string) => departmentApi.archive(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments-active'] });
+      queryClient.invalidateQueries({ queryKey: ['archive-summary'] });
       setDeptToArchive(null);
       setArchiveError(null);
     },
     onError: (err: any) => {
       setArchiveError(err.response?.data?.message || err.message || 'Failed to archive department');
+    },
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: string) => departmentApi.permanentDelete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments-active'] });
+      queryClient.invalidateQueries({ queryKey: ['archive-summary'] });
+      setDeptToDelete(null);
+      setDeleteError(null);
+    },
+    onError: (err: any) => {
+      setDeleteError(err.response?.data?.message || err.message || 'Failed to delete department permanently');
     },
   });
 
@@ -204,11 +220,23 @@ export const DepartmentsPage: React.FC = () => {
                       setArchiveError(null);
                       setDeptToArchive(dept);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-rose-500/20"
+                    className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-amber-500/20"
                     title="Archive department"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Archive className="w-3 h-3" />
                     <span>Archive</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeptToDelete(dept);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-rose-500/20"
+                    title="Delete Permanently"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
@@ -404,9 +432,60 @@ export const DepartmentsPage: React.FC = () => {
                 type="button"
                 disabled={deleteMutation.isPending}
                 onClick={() => deleteMutation.mutate(deptToArchive.id)}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>{deleteMutation.isPending ? 'Archiving...' : 'Confirm Archive'}</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Permanently Department Modal */}
+      {deptToDelete && (
+        <Modal
+          isOpen={!!deptToDelete}
+          onClose={() => setDeptToDelete(null)}
+          title={`Delete Permanently — ${deptToDelete.name}`}
+        >
+          <div className="space-y-4">
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+              <strong>Warning: Permanent Deletion</strong>
+              <p className="font-normal text-rose-300/80 mt-1">
+                Permanently deleting this department removes it completely from the database.
+                Any assigned employees, teams, and projects are safely detached.
+              </p>
+            </div>
+            <p className="text-sm text-slate-300">
+              Are you sure you want to permanently delete department <strong className="text-white">{deptToDelete.name}</strong>?
+            </p>
+            <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-1">
+              <div>• Record will NOT appear in Archive.</div>
+              <div>• Cannot be undone or restored.</div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeptToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={permanentDeleteMutation.isPending}
+                onClick={() => permanentDeleteMutation.mutate(deptToDelete.id)}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
               >
-                {deleteMutation.isPending ? 'Archiving...' : 'Confirm Archive'}
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{permanentDeleteMutation.isPending ? 'Deleting...' : 'Delete Permanently'}</span>
               </button>
             </div>
           </div>

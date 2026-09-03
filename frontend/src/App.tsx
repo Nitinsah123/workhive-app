@@ -26,6 +26,7 @@ import { DepartmentsPage } from './pages/departments/DepartmentsPage';
 import { TeamsPage } from './pages/teams/TeamsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
+import { ArchivePage } from './pages/archive/ArchivePage';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
@@ -107,6 +108,14 @@ export const App: React.FC = () => {
             element={
               <AdminRoute>
                 <TeamsPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/archive"
+            element={
+              <AdminRoute>
+                <ArchivePage />
               </AdminRoute>
             }
           />

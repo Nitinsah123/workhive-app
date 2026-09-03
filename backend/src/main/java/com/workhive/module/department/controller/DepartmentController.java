@@ -60,6 +60,33 @@ public class DepartmentController {
     @PreAuthorize("hasRole('TENANT_ADMIN')")
     public ResponseEntity<Map<String, String>> deleteDepartment(@PathVariable UUID id) {
         departmentService.deleteDepartment(id);
-        return ResponseEntity.ok(Map.of("message", "Department deactivated"));
+        return ResponseEntity.ok(Map.of("message", "Department archived successfully"));
+    }
+
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> archiveDepartment(@PathVariable UUID id) {
+        departmentService.archiveDepartment(id);
+        return ResponseEntity.ok(Map.of("message", "Department archived successfully"));
+    }
+
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> restoreDepartment(@PathVariable UUID id) {
+        departmentService.unarchiveDepartment(id);
+        return ResponseEntity.ok(Map.of("message", "Department restored successfully"));
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> permanentDeleteDepartment(@PathVariable UUID id) {
+        departmentService.permanentDeleteDepartment(id);
+        return ResponseEntity.ok(Map.of("message", "Department permanently deleted"));
+    }
+
+    @GetMapping("/archived")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<List<Department>> getArchivedDepartments() {
+        return ResponseEntity.ok(departmentService.getArchivedDepartments());
     }
 }

@@ -30,6 +30,9 @@ import {
   UserCheck,
   Download,
   FileText,
+  Archive,
+  Trash2,
+  ShieldAlert,
 } from 'lucide-react';
 
 export const PeoplePage: React.FC = () => {
@@ -64,6 +67,8 @@ export const PeoplePage: React.FC = () => {
   // Deactivate/Reactivate state
   const [userToDeactivate, setUserToDeactivate] = useState<any | null>(null);
   const [userToReactivate, setUserToReactivate] = useState<any | null>(null);
+  const [userToArchive, setUserToArchive] = useState<any | null>(null);
+  const [userToDeletePermanently, setUserToDeletePermanently] = useState<any | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [downloadingReport, setDownloadingReport] = useState(false);
 
@@ -190,6 +195,32 @@ export const PeoplePage: React.FC = () => {
     },
     onError: (err: any) => {
       setActionError(err.response?.data?.message || err.message || 'Failed to reactivate user');
+    },
+  });
+
+  const archiveUserMutation = useMutation({
+    mutationFn: (id: string) => userApi.archive(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users-all'] });
+      queryClient.invalidateQueries({ queryKey: ['archive-summary'] });
+      setUserToArchive(null);
+      setActionError(null);
+    },
+    onError: (err: any) => {
+      setActionError(err.response?.data?.message || err.message || 'Failed to archive user');
+    },
+  });
+
+  const permanentDeleteUserMutation = useMutation({
+    mutationFn: (id: string) => userApi.permanentDelete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users-all'] });
+      queryClient.invalidateQueries({ queryKey: ['archive-summary'] });
+      setUserToDeletePermanently(null);
+      setActionError(null);
+    },
+    onError: (err: any) => {
+      setActionError(err.response?.data?.message || err.message || 'Failed to permanently delete user');
     },
   });
 
@@ -436,6 +467,34 @@ export const PeoplePage: React.FC = () => {
                           <UserCheck className="w-3 h-3" />
                           <span>Reactivate</span>
                         </button>
+                      )}
+                      {currentUser?.role === 'TENANT_ADMIN' && currentUser?.id !== u.id && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionError(null);
+                              setUserToArchive(u);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-amber-500/20"
+                            title="Archive user"
+                          >
+                            <Archive className="w-3 h-3" />
+                            <span>Archive</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionError(null);
+                              setUserToDeletePermanently(u);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-rose-500/20"
+                            title="Delete Permanently"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={() => {
@@ -1170,6 +1229,117 @@ export const PeoplePage: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
               >
                 {reactivateMutation.isPending ? 'Reactivating...' : 'Confirm Reactivation'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Archive User Modal */}
+      {userToArchive && (
+        <Modal
+          isOpen={!!userToArchive}
+          onClose={() => {
+            setUserToArchive(null);
+            setActionError(null);
+          }}
+          title={`Archive User — ${userToArchive.fullName || userToArchive.email}`}
+        >
+          <div className="space-y-4">
+            {actionError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+            )}
+            <p className="text-sm text-slate-300">
+              Are you sure you want to archive <strong className="text-white">{userToArchive.fullName || userToArchive.email}</strong>?
+            </p>
+            <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-1.5">
+              <div>• The user will disappear from active workspace user lists.</div>
+              <div>• The user record is safely stored in the dedicated Archive section.</div>
+              <div>• You can unarchive/restore this user from the Archive at any time.</div>
+              <div>• All historical tasks, attendance, leaves, and activity remain preserved.</div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUserToArchive(null);
+                  setActionError(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={archiveUserMutation.isPending}
+                onClick={() => archiveUserMutation.mutate(userToArchive.id)}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>{archiveUserMutation.isPending ? 'Archiving...' : 'Confirm Archive'}</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Permanently Modal */}
+      {userToDeletePermanently && (
+        <Modal
+          isOpen={!!userToDeletePermanently}
+          onClose={() => {
+            setUserToDeletePermanently(null);
+            setActionError(null);
+          }}
+          title={`Delete Permanently — ${userToDeletePermanently.fullName || userToDeletePermanently.email}`}
+        >
+          <div className="space-y-4">
+            {actionError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+            )}
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-start gap-2.5">
+              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+              <div>
+                <strong>Warning: Permanent Deletion</strong>
+                <p className="font-normal text-rose-300/80 mt-1">
+                  This will permanently remove the WorkHive authentication identity, login credentials,
+                  and active sessions for this user.
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-300">
+              Are you sure you want to permanently delete <strong className="text-white">{userToDeletePermanently.fullName || userToDeletePermanently.email}</strong>?
+            </p>
+            <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 space-y-1">
+              <div>• Historical project and task records remain safe with manager/creator cleanly reassigned.</div>
+              <div>• Permanently deleted users will NOT appear in Archive.</div>
+              <div>• This action cannot be undone.</div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUserToDeletePermanently(null);
+                  setActionError(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={permanentDeleteUserMutation.isPending}
+                onClick={() => permanentDeleteUserMutation.mutate(userToDeletePermanently.id)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{permanentDeleteUserMutation.isPending ? 'Deleting...' : 'Delete Permanently'}</span>
               </button>
             </div>
           </div>

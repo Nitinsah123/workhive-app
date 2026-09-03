@@ -12,6 +12,8 @@ import java.util.UUID;
 @Repository
 public interface DepartmentRepository extends JpaRepository<Department, UUID> {
     Page<Department> findByTenantId(UUID tenantId, Pageable pageable);
+    Page<Department> findByTenantIdAndStatus(UUID tenantId, String status, Pageable pageable);
+    Page<Department> findByTenantIdAndStatusNot(UUID tenantId, String status, Pageable pageable);
     List<Department> findByTenantIdAndStatus(UUID tenantId, String status);
     Optional<Department> findByIdAndTenantId(UUID id, UUID tenantId);
     boolean existsByTenantIdAndName(UUID tenantId, String name);

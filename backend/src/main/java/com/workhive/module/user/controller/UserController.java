@@ -79,6 +79,33 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "User deactivated"));
     }
 
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> archiveUser(@PathVariable UUID id) {
+        userService.archiveUser(id);
+        return ResponseEntity.ok(Map.of("message", "User archived successfully"));
+    }
+
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> restoreUser(@PathVariable UUID id) {
+        userService.unarchiveUser(id);
+        return ResponseEntity.ok(Map.of("message", "User restored successfully"));
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> permanentDeleteUser(@PathVariable UUID id) {
+        userService.permanentDeleteUser(id);
+        return ResponseEntity.ok(Map.of("message", "User permanently deleted"));
+    }
+
+    @GetMapping("/archived")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<List<User>> getArchivedUsers() {
+        return ResponseEntity.ok(userService.getArchivedUsers());
+    }
+
     @PostMapping("/{id}/reactivate")
     @PreAuthorize("hasRole('TENANT_ADMIN')")
     public ResponseEntity<Map<String, String>> reactivateUser(@PathVariable UUID id) {

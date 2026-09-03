@@ -33,6 +33,9 @@ public class ProjectService {
     private final WorkActivityService workActivityService;
     private final AuditService auditService;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     public ProjectService(ProjectRepository projectRepository,
                           ProjectMemberRepository projectMemberRepository,
                           MilestoneRepository milestoneRepository,
@@ -142,6 +145,35 @@ public class ProjectService {
         project.setStatus("ARCHIVED");
         projectRepository.save(project);
         auditService.log(tenantId, userId, "PROJECT_ARCHIVED", "PROJECT", project.getId(), null, null);
+    }
+
+    @Transactional
+    public void unarchiveProject(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+
+        Project project = getProject(id);
+        project.setStatus("ACTIVE");
+        projectRepository.save(project);
+        auditService.log(tenantId, userId, "PROJECT_RESTORED", "PROJECT", project.getId(), null, null);
+    }
+
+    @Transactional
+    public void permanentDeleteProject(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can permanently delete projects");
+        }
+
+        Project project = getProject(id);
+
+        entityManager.createNativeQuery("DELETE FROM project_members WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM tasks WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        projectRepository.delete(project);
+        auditService.log(tenantId, userId, "PROJECT_PERMANENTLY_DELETED", "PROJECT", id, null, null);
     }
 
     public List<ProjectMember> getProjectMembers(UUID projectId) {

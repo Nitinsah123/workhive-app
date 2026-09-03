@@ -38,6 +38,9 @@ public class TaskService {
     private final WorkActivityService workActivityService;
     private final AuditService auditService;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     public TaskService(TaskRepository taskRepository,
                        SubtaskRepository subtaskRepository,
                        TaskCommentRepository taskCommentRepository,
@@ -215,6 +218,50 @@ public class TaskService {
         }
 
         auditService.log(tenantId, userId, "TASK_ARCHIVED", "TASK", task.getId(), null, null);
+    }
+
+    @Transactional
+    public void unarchiveTask(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+
+        Task task = getTask(id);
+        task.setStatus("TODO");
+        taskRepository.save(task);
+
+        if (task.getProjectId() != null) {
+            projectRepository.findByIdAndTenantId(task.getProjectId(), tenantId)
+                    .ifPresent(projectService::recalculateProgressAndHealth);
+        }
+
+        auditService.log(tenantId, userId, "TASK_RESTORED", "TASK", task.getId(), null, null);
+    }
+
+    @Transactional
+    public void permanentDeleteTask(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can permanently delete tasks");
+        }
+
+        Task task = getTask(id);
+
+        entityManager.createNativeQuery("DELETE FROM task_comments WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_submissions WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_history WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM subtasks WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
+
+        taskRepository.delete(task);
+
+        if (task.getProjectId() != null) {
+            projectRepository.findByIdAndTenantId(task.getProjectId(), tenantId)
+                    .ifPresent(projectService::recalculateProgressAndHealth);
+        }
+
+        auditService.log(tenantId, userId, "TASK_PERMANENTLY_DELETED", "TASK", id, null, null);
     }
 
     @Transactional

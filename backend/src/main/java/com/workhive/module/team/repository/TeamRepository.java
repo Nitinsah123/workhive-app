@@ -12,6 +12,8 @@ import java.util.UUID;
 @Repository
 public interface TeamRepository extends JpaRepository<Team, UUID> {
     Page<Team> findByTenantId(UUID tenantId, Pageable pageable);
+    Page<Team> findByTenantIdAndStatus(UUID tenantId, String status, Pageable pageable);
+    Page<Team> findByTenantIdAndStatusNot(UUID tenantId, String status, Pageable pageable);
     List<Team> findByTenantId(UUID tenantId);
     List<Team> findByTenantIdAndStatus(UUID tenantId, String status);
     List<Team> findByTenantIdAndDepartmentId(UUID tenantId, UUID departmentId);

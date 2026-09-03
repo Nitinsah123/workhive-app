@@ -70,6 +70,33 @@ public class TeamController {
     @PreAuthorize("hasRole('TENANT_ADMIN')")
     public ResponseEntity<Map<String, String>> deleteTeam(@PathVariable UUID id) {
         teamService.deleteTeam(id);
-        return ResponseEntity.ok(Map.of("message", "Team deactivated"));
+        return ResponseEntity.ok(Map.of("message", "Team archived successfully"));
+    }
+
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> archiveTeam(@PathVariable UUID id) {
+        teamService.archiveTeam(id);
+        return ResponseEntity.ok(Map.of("message", "Team archived successfully"));
+    }
+
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> restoreTeam(@PathVariable UUID id) {
+        teamService.unarchiveTeam(id);
+        return ResponseEntity.ok(Map.of("message", "Team restored successfully"));
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<Map<String, String>> permanentDeleteTeam(@PathVariable UUID id) {
+        teamService.permanentDeleteTeam(id);
+        return ResponseEntity.ok(Map.of("message", "Team permanently deleted"));
+    }
+
+    @GetMapping("/archived")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public ResponseEntity<List<Team>> getArchivedTeams() {
+        return ResponseEntity.ok(teamService.getArchivedTeams());
     }
 }

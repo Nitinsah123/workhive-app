@@ -21,6 +21,9 @@ public class TeamService {
     private final TeamRepository teamRepository;
     private final AuditService auditService;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     public TeamService(TeamRepository teamRepository, AuditService auditService) {
         this.teamRepository = teamRepository;
         this.auditService = auditService;
@@ -28,7 +31,7 @@ public class TeamService {
 
     public Page<Team> getTeams(Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
-        return teamRepository.findByTenantId(tenantId, pageable);
+        return teamRepository.findByTenantIdAndStatusNot(tenantId, "ARCHIVED", pageable);
     }
 
     public List<Team> getAllTeams() {
@@ -39,6 +42,11 @@ public class TeamService {
     public List<Team> getActiveTeams() {
         UUID tenantId = TenantContext.requireTenantId();
         return teamRepository.findByTenantIdAndStatus(tenantId, "ACTIVE");
+    }
+
+    public List<Team> getArchivedTeams() {
+        UUID tenantId = TenantContext.requireTenantId();
+        return teamRepository.findByTenantIdAndStatus(tenantId, "ARCHIVED");
     }
 
     public List<Team> getTeamsByDepartment(UUID departmentId) {
@@ -97,6 +105,62 @@ public class TeamService {
         team = teamRepository.save(team);
         auditService.log(tenantId, userId, "TEAM_UPDATED", "TEAM", team.getId(), null, null);
         return team;
+    }
+
+    @Transactional
+    public void archiveTeam(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can archive teams");
+        }
+
+        Team team = getTeam(id);
+        team.setStatus("ARCHIVED");
+        teamRepository.save(team);
+        auditService.log(tenantId, userId, "TEAM_ARCHIVED", "TEAM", team.getId(), null, null);
+    }
+
+    @Transactional
+    public void unarchiveTeam(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can restore teams");
+        }
+
+        Team team = getTeam(id);
+        team.setStatus("ACTIVE");
+        teamRepository.save(team);
+        auditService.log(tenantId, userId, "TEAM_RESTORED", "TEAM", team.getId(), null, null);
+    }
+
+    @Transactional
+    public void permanentDeleteTeam(UUID id) {
+        UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        if (!"TENANT_ADMIN".equalsIgnoreCase(role)) {
+            throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can permanently delete teams");
+        }
+
+        Team team = getTeam(id);
+
+        // Safely detach foreign key references
+        entityManager.createNativeQuery("UPDATE users SET team_id = NULL WHERE team_id = :tid AND tenant_id = :tenantId")
+                .setParameter("tid", id).setParameter("tenantId", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE projects SET team_id = NULL WHERE team_id = :tid AND tenant_id = :tenantId")
+                .setParameter("tid", id).setParameter("tenantId", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE invitations SET team_id = NULL WHERE team_id = :tid AND tenant_id = :tenantId")
+                .setParameter("tid", id).setParameter("tenantId", tenantId).executeUpdate();
+
+        teamRepository.delete(team);
+        auditService.log(tenantId, userId, "TEAM_PERMANENTLY_DELETED", "TEAM", id, null, null);
     }
 
     @Transactional
