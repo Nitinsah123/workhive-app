@@ -947,7 +947,7 @@ export const PeoplePage: React.FC = () => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-bold text-white truncate max-w-xs">{selectedUser360.fullName}</h3>
+                    <h3 className="text-lg font-bold text-white truncate max-w-sm sm:max-w-md">{selectedUser360.fullName}</h3>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 whitespace-nowrap flex-shrink-0">
                         {selectedUser360.role}
