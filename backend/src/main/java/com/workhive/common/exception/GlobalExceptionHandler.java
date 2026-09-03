@@ -38,6 +38,13 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("CONFLICT", ex.getMessage(), Instant.now()));
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.warn("Data integrity constraint violation: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("CONFLICT", "This record cannot be removed because dependent business records are linked to it.", Instant.now()));
+    }
+
     @ExceptionHandler(TenantAccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleTenantAccess(TenantAccessDeniedException ex) {
         log.warn("Tenant access denied: {}", ex.getMessage());

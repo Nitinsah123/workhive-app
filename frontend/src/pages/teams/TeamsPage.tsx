@@ -109,7 +109,8 @@ export const TeamsPage: React.FC = () => {
       setDeleteError(null);
     },
     onError: (err: any) => {
-      setDeleteError(err.response?.data?.message || err.message || 'Failed to permanently delete team');
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setDeleteError(serverMsg || 'Failed to permanently delete team');
     },
   });
 

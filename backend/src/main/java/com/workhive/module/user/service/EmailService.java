@@ -14,9 +14,17 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +49,8 @@ public class EmailService {
 
     @Value("${spring.mail.username:}")
     private String fromAddress = "";
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public EmailService(@Autowired(required = false) JavaMailSender mailSender,
                         OutboxEventRepository outboxEventRepository,
@@ -126,9 +136,37 @@ public class EmailService {
         String emailStatus = "EMAIL_PENDING";
         String errorMessage = null;
 
-        // 1. Try per-admin Gmail OAuth provider first
+        // 1. If BREVO_API_KEY is present, dispatch via Brevo HTTPS REST API (Render Production Standard)
+        boolean brevoAttempted = false;
+        boolean brevoSuccess = false;
+        String brevoKey = getBrevoApiKey();
+
+        if (brevoKey != null && !brevoKey.isBlank()) {
+            brevoAttempted = true;
+            String msgId = sendViaBrevoApi(
+                    senderDisplay + " (" + tenantName + ")",
+                    effectiveFrom,
+                    senderEmail,
+                    senderDisplay,
+                    cleanEmail,
+                    displayName,
+                    subject,
+                    htmlBody,
+                    plainTextBody
+            );
+            if (msgId != null) {
+                brevoSuccess = true;
+                emailStatus = "EMAIL_SENT";
+            } else {
+                brevoSuccess = false;
+                emailStatus = "EMAIL_FAILED";
+                errorMessage = "Brevo API delivery rejected or connection failed";
+            }
+        }
+
+        // 2. Try per-admin Gmail OAuth provider if Brevo was not configured
         boolean oauthSuccess = false;
-        if (emailConnectionService != null) {
+        if (!brevoAttempted && emailConnectionService != null) {
             try {
                 // Look up the admin's OAuth email connection by tenant, admin user ID, or sender email
                 UUID adminUserId = (senderUserId != null) ? senderUserId : findAdminUserId(tenantId, senderEmail);
@@ -151,9 +189,9 @@ public class EmailService {
             }
         }
 
-        // 2. Fallback: Dispatch via JavaMailSender (central SMTP / notifications sender)
+        // 3. Fallback: Dispatch via JavaMailSender (central SMTP / notifications sender)
         boolean smtpSuccess = false;
-        if (!oauthSuccess) {
+        if (!brevoAttempted && !oauthSuccess) {
             try {
                 if (mailSender != null) {
                     if (mailSender instanceof org.springframework.mail.javamail.JavaMailSenderImpl jmsImpl) {
@@ -275,8 +313,8 @@ public class EmailService {
             }
         }
 
-        // 3. If neither OAuth nor SMTP dispatched, record in local MailHog buffer for dev tracing
-        if (!oauthSuccess && !smtpSuccess) {
+        // 4. If neither Brevo, OAuth, nor SMTP dispatched, record in local MailHog buffer for dev tracing
+        if (!brevoSuccess && !oauthSuccess && !smtpSuccess) {
             try {
                 MailHogServer.recordMessage(MailHogServer.MailMessage.builder()
                         .id(UUID.randomUUID().toString())
@@ -519,4 +557,115 @@ public class EmailService {
         }
         return mailPort > 0 ? mailPort : 587;
     }
+
+    /**
+     * Gets the Brevo API Key configured for transactional email delivery.
+     * Never exposes or prints the secret value.
+     */
+    public String getBrevoApiKey() {
+        String key = System.getenv("BREVO_API_KEY");
+        if (key != null && !key.isBlank()) {
+            return key.trim();
+        }
+        String sysKey = System.getProperty("BREVO_API_KEY");
+        if (sysKey != null && !sysKey.isBlank()) {
+            return sysKey.trim();
+        }
+        String propKey = System.getProperty("brevo.api.key");
+        if (propKey != null && !propKey.isBlank()) {
+            return propKey.trim();
+        }
+        return null;
+    }
+
+    /**
+     * Dispatches an invitation email using Brevo's HTTPS Transactional Email REST API.
+     * POST https://api.brevo.com/v3/smtp/email
+     * api-key = BREVO_API_KEY
+     *
+     * @return messageId on success, or null on rejection/failure
+     */
+    public String sendViaBrevoApi(String senderName,
+                                 String senderEmail,
+                                 String replyToEmail,
+                                 String replyToName,
+                                 String recipientEmail,
+                                 String recipientName,
+                                 String subject,
+                                 String htmlBody,
+                                 String plainTextBody) {
+        String apiKey = getBrevoApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            String effectiveSenderEmail = (senderEmail != null && !senderEmail.isBlank() && !senderEmail.contains("noreply"))
+                    ? senderEmail
+                    : "workhivenotifications@gmail.com";
+
+            payload.put("sender", Map.of(
+                    "name", senderName != null && !senderName.isBlank() ? senderName : "WorkHive Notifications",
+                    "email", effectiveSenderEmail
+            ));
+
+            payload.put("to", List.of(Map.of(
+                    "email", recipientEmail,
+                    "name", recipientName != null && !recipientName.isBlank() ? recipientName : recipientEmail
+            )));
+
+            if (replyToEmail != null && !replyToEmail.isBlank()) {
+                payload.put("replyTo", Map.of(
+                        "email", replyToEmail,
+                        "name", replyToName != null && !replyToName.isBlank() ? replyToName : "Workspace Administrator"
+                ));
+            }
+
+            payload.put("subject", subject);
+            payload.put("htmlContent", htmlBody);
+            payload.put("textContent", plainTextBody);
+
+            String requestJson = objectMapper.writeValueAsString(payload);
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("api-key", apiKey.trim())
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            int status = response.statusCode();
+
+            if (status >= 200 && status < 300) {
+                String body = response.body();
+                String messageId = "brevo-msg-" + UUID.randomUUID();
+                try {
+                    Map<?, ?> map = objectMapper.readValue(body, Map.class);
+                    if (map.containsKey("messageId")) {
+                        messageId = String.valueOf(map.get("messageId"));
+                    }
+                } catch (Exception ignored) {}
+
+                log.info("📧 Invitation email successfully dispatched via Brevo REST API to [{}], msgId=[{}]",
+                        recipientEmail, messageId);
+                return messageId;
+            } else {
+                log.error("❌ Brevo API transmission failed for recipient [{}]: HTTP status {}",
+                        recipientEmail, status);
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("❌ Exception during Brevo API transmission to [{}]: {}", recipientEmail, e.getMessage());
+            return null;
+        }
+    }
 }
+

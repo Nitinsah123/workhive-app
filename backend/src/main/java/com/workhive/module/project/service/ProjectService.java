@@ -170,8 +170,22 @@ public class ProjectService {
 
         Project project = getProject(id);
 
-        entityManager.createNativeQuery("DELETE FROM project_members WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        // 1. Clean task children for all tasks in this project
+        entityManager.createNativeQuery("DELETE FROM task_comments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_submissions WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_attachments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_history WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM subtasks WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
+
+        // 2. Detach or clean time entries and activities
+        entityManager.createNativeQuery("UPDATE time_entries SET project_id = NULL, task_id = NULL WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE work_activities SET project_id = NULL, task_id = NULL WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+
+        // 3. Clean project members, tasks, and milestones
         entityManager.createNativeQuery("DELETE FROM tasks WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM milestones WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM project_members WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+
         projectRepository.delete(project);
         auditService.log(tenantId, userId, "PROJECT_PERMANENTLY_DELETED", "PROJECT", id, null, null);
     }

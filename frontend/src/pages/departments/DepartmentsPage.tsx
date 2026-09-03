@@ -92,7 +92,8 @@ export const DepartmentsPage: React.FC = () => {
       setDeleteError(null);
     },
     onError: (err: any) => {
-      setDeleteError(err.response?.data?.message || err.message || 'Failed to delete department permanently');
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setDeleteError(serverMsg || 'Failed to delete department permanently');
     },
   });
 

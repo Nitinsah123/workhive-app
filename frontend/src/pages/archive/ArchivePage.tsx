@@ -65,7 +65,8 @@ export const ArchivePage: React.FC = () => {
       setTimeout(() => setActionSuccess(null), 4000);
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.message || err.message || 'Failed to restore item');
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setActionError(serverMsg || 'Failed to restore item');
     },
   });
 
@@ -82,7 +83,8 @@ export const ArchivePage: React.FC = () => {
       setTimeout(() => setActionSuccess(null), 4000);
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.message || err.message || 'Failed to permanently delete item');
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setActionError(serverMsg || 'Failed to permanently delete item');
     },
   });
 

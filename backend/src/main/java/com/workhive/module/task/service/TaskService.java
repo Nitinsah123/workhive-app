@@ -251,8 +251,11 @@ public class TaskService {
 
         entityManager.createNativeQuery("DELETE FROM task_comments WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM task_submissions WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_attachments WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM task_history WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM subtasks WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE time_entries SET task_id = NULL WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE work_activities SET task_id = NULL WHERE task_id = :tid").setParameter("tid", id).executeUpdate();
 
         taskRepository.delete(task);
 

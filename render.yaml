@@ -46,6 +46,8 @@ services:
         sync: false
       - key: SPRING_MAIL_PASSWORD
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
 
   # Frontend Vite React Static Site
   - type: web

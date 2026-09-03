@@ -373,7 +373,47 @@ public class UserService {
         entityManager.createNativeQuery("UPDATE invitations SET invited_by = :adminId WHERE invited_by = :uid AND tenant_id = :tid")
                 .setParameter("adminId", operatorId).setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
 
-        // 4. Other dependent entities
+        // 4. Task-related child records (comments, submissions, history, attachments)
+        entityManager.createNativeQuery("UPDATE task_submissions SET reviewed_by = NULL WHERE reviewed_by = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE task_submissions SET submitted_by = :adminId WHERE submitted_by = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE task_comments SET author_id = :adminId WHERE author_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE task_attachments SET uploaded_by = :adminId WHERE uploaded_by = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE task_history SET user_id = :adminId WHERE user_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+
+        // 5. Work activities, documents, announcements
+        entityManager.createNativeQuery("UPDATE work_activities SET user_id = :adminId WHERE user_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE documents SET owner_id = :adminId WHERE owner_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE announcements SET author_id = :adminId WHERE author_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+
+        // 6. Time entries and attendance
+        entityManager.createNativeQuery("UPDATE time_entries SET user_id = :adminId WHERE user_id = :uid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE attendance SET user_id = :adminId WHERE user_id = :uid AND tenant_id = :tid AND date NOT IN (SELECT a2.date FROM attendance a2 WHERE a2.user_id = :adminId AND a2.tenant_id = :tid)")
+                .setParameter("adminId", operatorId).setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM attendance WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // 7. Leave requests and balances
+        entityManager.createNativeQuery("UPDATE leave_requests SET reviewer_id = NULL WHERE reviewer_id = :uid AND tenant_id = :tid")
+                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("UPDATE leave_requests SET user_id = :adminId WHERE user_id = :uid AND tenant_id = :tid")
+                .setParameter("adminId", operatorId).setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM leave_balances WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // 8. Integrations, project memberships, tokens, sessions, notifications
+        entityManager.createNativeQuery("DELETE FROM integration_mappings WHERE integration_id IN (SELECT i.id FROM integrations i WHERE i.connected_by = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM integrations WHERE connected_by = :uid")
+                .setParameter("uid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM project_members WHERE user_id = :uid")
                 .setParameter("uid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM refresh_tokens WHERE user_id = :uid")
@@ -382,26 +422,10 @@ public class UserService {
                 .setParameter("uid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM notifications WHERE recipient_id = :uid")
                 .setParameter("uid", id).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM leave_balances WHERE user_id = :uid")
-                .setParameter("uid", id).executeUpdate();
-        entityManager.createNativeQuery("UPDATE leave_requests SET reviewer_id = NULL WHERE reviewer_id = :uid AND tenant_id = :tid")
-                .setParameter("uid", id).setParameter("tid", tenantId).executeUpdate();
-        entityManager.createNativeQuery("UPDATE task_submissions SET reviewed_by = NULL WHERE reviewed_by = :uid")
-                .setParameter("uid", id).executeUpdate();
-        entityManager.createNativeQuery("UPDATE task_submissions SET submitted_by = :adminId WHERE submitted_by = :uid")
-                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
-        entityManager.createNativeQuery("UPDATE task_comments SET author_id = :adminId WHERE author_id = :uid")
-                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
-        entityManager.createNativeQuery("UPDATE documents SET uploaded_by = :adminId WHERE uploaded_by = :uid")
-                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
-        entityManager.createNativeQuery("UPDATE document_versions SET author_id = :adminId WHERE author_id = :uid")
-                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
-        entityManager.createNativeQuery("UPDATE announcements SET author_id = :adminId WHERE author_id = :uid")
-                .setParameter("adminId", operatorId).setParameter("uid", id).executeUpdate();
         entityManager.createNativeQuery("UPDATE audit_logs SET user_id = NULL WHERE user_id = :uid")
                 .setParameter("uid", id).executeUpdate();
 
-        // 5. Delete the user
+        // 9. Delete the user
         userRepository.delete(user);
 
         auditService.log(tenantId, operatorId, "USER_PERMANENTLY_DELETED", "USER", id, null, null);
