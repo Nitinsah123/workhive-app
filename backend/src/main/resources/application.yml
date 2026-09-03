@@ -98,6 +98,13 @@ minio:
   secret-key: ${MINIO_SECRET_KEY:workhive_minio_secret}
   bucket: workhive-documents
 
+# Brevo Transactional Email Configuration
+brevo:
+  api:
+    key: ${BREVO_API_KEY:}
+  sender:
+    email: ${BREVO_SENDER_EMAIL:}
+
 # Actuator
 management:
   endpoints:

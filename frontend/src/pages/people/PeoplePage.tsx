@@ -70,6 +70,22 @@ export const PeoplePage: React.FC = () => {
   const [userToDeletePermanently, setUserToDeletePermanently] = useState<any | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  const copyInviteLink = (token?: string) => {
+    const t = token || createdInviteResult?.token;
+    if (!t) return;
+    const url = `${window.location.origin}/accept-invitation?token=${t}`;
+    navigator.clipboard.writeText(url);
+    if (token) {
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken(null), 2000);
+    } else {
+      setCopiedInvite(true);
+      setTimeout(() => setCopiedInvite(false), 2000);
+    }
+  };
 
   const { user: currentUser } = useAuthStore();
   const queryClient = useQueryClient();
@@ -290,14 +306,6 @@ export const PeoplePage: React.FC = () => {
     return mgr ? `${mgr.fullName} (${mgr.role === 'TENANT_ADMIN' ? 'Admin' : mgr.role})` : '—';
   };
 
-  const copyInviteLink = () => {
-    if (!createdInviteResult?.token) return;
-    const link = `${window.location.origin}/accept-invitation?token=${createdInviteResult.token}`;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -360,8 +368,8 @@ export const PeoplePage: React.FC = () => {
         usersLoading ? (
           <div className="text-center py-20 text-slate-500 text-sm">Loading people directory...</div>
         ) : (
-          <div className="glass-panel rounded-3xl overflow-hidden border border-slate-800">
-            <table className="w-full text-left text-sm text-slate-300">
+          <div className="glass-panel rounded-3xl overflow-x-auto border border-slate-800">
+            <table className="w-full text-left text-sm text-slate-300 min-w-[950px]">
               <thead className="bg-slate-900/80 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
                 <tr>
                   <th className="px-6 py-4">Employee</th>
@@ -370,7 +378,7 @@ export const PeoplePage: React.FC = () => {
                   <th className="px-6 py-4">Team</th>
                   <th className="px-6 py-4">Role</th>
                   <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-6 py-4 text-right min-w-[340px] whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -419,8 +427,8 @@ export const PeoplePage: React.FC = () => {
                         {u.status || 'ACTIVE'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                    <td className="px-6 py-4 text-right min-w-[340px] whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         <button
                           onClick={(e) => handleOpenEdit(u, e)}
                           className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors inline-flex items-center gap-1 shrink-0"
@@ -545,7 +553,18 @@ export const PeoplePage: React.FC = () => {
                       <td className="px-6 py-4 text-xs text-slate-500">
                         {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : '7 days'}
                       </td>
-                      <td className="px-6 py-4 text-right space-x-2">
+                      <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                        {inv.token && (
+                          <button
+                            type="button"
+                            onClick={() => copyInviteLink(inv.token)}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold inline-flex items-center gap-1 mr-2"
+                            title="Copy single-use invitation link"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span>{copiedToken === inv.token ? 'Copied!' : 'Copy Link'}</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => resendMutation.mutate(inv.id)}
                           className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
@@ -605,26 +624,30 @@ export const PeoplePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-left space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Direct Invitation Link (Single-Use Fallback)
+            {createdInviteResult.token && (
+              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-left space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <span>Direct Invitation Link (Single-Use Fallback)</span>
+                  {copiedInvite && <span className="text-emerald-400 font-bold lowercase text-[11px]">copied to clipboard</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/accept-invitation?token=${createdInviteResult.token}`}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 text-xs font-mono select-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyInviteLink(createdInviteResult.token)}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 flex-shrink-0 transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copiedInvite ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/accept-invitation?token=${createdInviteResult.token}`}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 text-xs font-mono select-all"
-                />
-                <button
-                  onClick={copyInviteLink}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 flex-shrink-0"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{copied ? 'Copied!' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
+            )}
 
             <button
               onClick={() => setInviteModalOpen(false)}
@@ -938,14 +961,17 @@ export const PeoplePage: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                  <div className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span className="flex items-center gap-1 min-w-0 break-all"><Mail className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" /> {selectedUser360.email}</span>
+                  <div className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-slate-300 min-w-0">
+                      <Mail className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+                      <span>{selectedUser360.email}</span>
+                    </span>
                     <span className="font-mono text-indigo-300 whitespace-nowrap flex-shrink-0">Code: {selectedUser360.employeeCode || '—'}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
+              <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-start -mt-0.5 sm:-mt-1">
                 <button
                   type="button"
                   disabled={downloadingReport}

@@ -43,10 +43,11 @@ class EmailServiceBrevoTest {
     @Test
     void testBrevoReturnsNullWhenKeyNotConfigured() {
         System.clearProperty("BREVO_API_KEY");
-        // Should return null and not crash
-        String result = emailService.sendViaBrevoApi("WorkHive Admin", "admin@workhive.com",
+        // Should return failed BrevoResult and not crash
+        EmailService.BrevoResult result = emailService.sendViaBrevoApi("WorkHive Admin", "admin@workhive.com",
                 "admin@workhive.com", "Admin", "emp@workhive.com", "Emp", "Subject", "<h1>Html</h1>", "Text");
-        assertNull(result);
+        assertNotNull(result);
+        assertFalse(result.success);
     }
 
     @Test
@@ -80,9 +81,10 @@ class EmailServiceBrevoTest {
         String testSecret = "xkeysib-998877665544332211aabbccddeeff";
         System.setProperty("BREVO_API_KEY", testSecret);
 
-        String result = emailService.sendViaBrevoApi("Sender", "sender@test.com", "reply@test.com", "Reply",
+        EmailService.BrevoResult result = emailService.sendViaBrevoApi("Sender", "sender@test.com", "reply@test.com", "Reply",
                 "to@test.com", "To", "Subject", "<p>Hello</p>", "Hello");
-        assertNull(result);
+        assertNotNull(result);
+        assertFalse(result.success);
         // The secret should be accessed via getBrevoApiKey without exposing in toString or standard prints
         assertNotNull(emailService.getBrevoApiKey());
     }
