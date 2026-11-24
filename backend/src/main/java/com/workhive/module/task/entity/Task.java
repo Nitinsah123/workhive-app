@@ -57,6 +57,15 @@ public class Task {
     @Column(name = "sort_order") @Builder.Default
     private Integer sortOrder = 0;
 
+    @Column(name = "assigned_at")
+    private Instant assignedAt;
+
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Version
     private Integer version;
 

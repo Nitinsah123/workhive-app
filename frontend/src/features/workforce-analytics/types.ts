@@ -84,6 +84,10 @@ export interface TaskSummaryItem {
   dueDate: string;
   overdue: boolean;
   projectName?: string | null;
+  assignedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  reviewCount: number;
 }
 
 export interface Employee360DashboardDTO {

@@ -23,6 +23,8 @@ import {
   PieChart as PieIcon,
   RefreshCw,
   FolderGit2,
+  Search,
+  History,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -53,6 +55,8 @@ export const Employee360Dashboard: React.FC = () => {
 
   const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | 'CURRENT_SPRINT'>('TODAY');
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TASKS' | 'TELEMETRY'>('OVERVIEW');
+  const [taskSearchQuery, setTaskSearchQuery] = useState('');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE'>('ALL');
 
   // SSE real-time stream listener for this employee
   const { isConnected, lastEvent, events } = useActivityStream(userId);
@@ -154,6 +158,26 @@ export const Employee360Dashboard: React.FC = () => {
     ...events,
     ...dashboard.activityTimeline.filter((t) => !events.some((e) => e.id === t.id)),
   ];
+
+  // Filtered assigned tasks list
+  const filteredTasks = (dashboard.assignedTasks || []).filter((t) => {
+    const q = taskSearchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      t.title.toLowerCase().includes(q) ||
+      (t.id && t.id.toLowerCase().includes(q)) ||
+      (t.projectName && t.projectName.toLowerCase().includes(q));
+
+    if (!matchesSearch) return false;
+
+    if (taskStatusFilter === 'ALL') return true;
+    const statusUpper = (t.status || '').toUpperCase();
+    if (taskStatusFilter === 'TODO') return statusUpper === 'TODO';
+    if (taskStatusFilter === 'IN_PROGRESS') return statusUpper === 'IN_PROGRESS';
+    if (taskStatusFilter === 'IN_REVIEW') return statusUpper === 'IN_REVIEW' || statusUpper === 'REVIEW';
+    if (taskStatusFilter === 'DONE') return statusUpper === 'DONE' || statusUpper === 'COMPLETED';
+    return true;
+  });
 
   return (
     <div className="space-y-6 pb-16 animate-fade-in max-w-7xl mx-auto">
@@ -703,53 +727,145 @@ export const Employee360Dashboard: React.FC = () => {
       {/* TAB 3: ASSIGNED & PENDING WORK */}
       {activeTab === 'TASKS' && (
         <div className="rounded-3xl border border-slate-800 bg-[#0E1322] p-6 sm:p-8 shadow-xl space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
               <h3 className="text-lg font-bold text-white font-display">Assigned Work & Deliverables</h3>
               <p className="text-xs text-slate-400 mt-1">
                 Active tasks, sprints, and priorities assigned to {dashboard.fullName}
               </p>
             </div>
-            <span className="text-xs font-bold text-indigo-300 bg-indigo-500/10 px-3 py-1 rounded-xl border border-indigo-500/20">
-              {dashboard.assignedTasks.length} Total Tasks
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-indigo-300 bg-indigo-500/10 px-3 py-1.5 rounded-xl border border-indigo-500/20">
+                {filteredTasks.length} of {dashboard.assignedTasks.length} Tasks
+              </span>
+            </div>
+          </div>
+
+          {/* Search bar & Status filter pills */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search tasks by title, key, ID..."
+                value={taskSearchQuery}
+                onChange={(e) => setTaskSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(['ALL', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'] as const).map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setTaskStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                    taskStatusFilter === status
+                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm shadow-indigo-600/30'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800'
+                  }`}
+                >
+                  {status === 'ALL'
+                    ? 'All'
+                    : status === 'TODO'
+                    ? 'To Do'
+                    : status === 'IN_PROGRESS'
+                    ? 'In Progress'
+                    : status === 'IN_REVIEW'
+                    ? 'In Review'
+                    : 'Done'}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-3">
-            {dashboard.assignedTasks.length === 0 ? (
-              <p className="text-xs text-slate-500 py-6 text-center">No assigned tasks currently.</p>
+            {filteredTasks.length === 0 ? (
+              <div className="text-center py-12 border border-dashed border-slate-800 rounded-2xl">
+                <p className="text-sm font-semibold text-slate-400">No tasks match your filters</p>
+                <p className="text-xs text-slate-500 mt-1">Try adjusting the search query or status filter</p>
+              </div>
             ) : (
-              dashboard.assignedTasks.map((t) => (
+              filteredTasks.map((t) => (
                 <div
                   key={t.id}
-                  className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all space-y-3"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-white">{t.title}</span>
-                      {t.overdue && (
-                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
-                          Overdue
-                        </span>
-                      )}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-white">{t.title}</span>
+                        {t.overdue && (
+                          <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                            Overdue
+                          </span>
+                        )}
+                        {t.reviewCount > 0 && (
+                          <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 flex items-center gap-1">
+                            <History className="w-3 h-3" />
+                            Reviewed {t.reviewCount}x
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-500">Project: {t.projectName || 'Core Workspace'}</span>
                     </div>
-                    <span className="text-xs text-slate-500">Project: {t.projectName}</span>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                          t.priority === 'HIGH' || t.priority === 'URGENT'
+                            ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            : t.priority === 'MEDIUM'
+                            ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        {t.priority}
+                      </span>
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                          t.status === 'DONE' || t.status === 'COMPLETED'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : t.status === 'IN_PROGRESS'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : t.status === 'IN_REVIEW' || t.status === 'REVIEW'
+                            ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {t.status}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
-                        t.priority === 'HIGH'
-                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                          : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
-                      }`}
-                    >
-                      {t.priority}
-                    </span>
-                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
-                      {t.status}
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">Due: {t.dueDate}</span>
+                  {/* Task Lifecycle & Review Audit History Timestamps */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 block">Assigned Date:</span>
+                      <span className="font-mono text-slate-300">
+                        {t.assignedAt ? new Date(t.assignedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Started Date:</span>
+                      <span className="font-mono text-slate-300">
+                        {t.startedAt ? new Date(t.startedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not started'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Completed Date:</span>
+                      <span className="font-mono text-slate-300">
+                        {t.completedAt
+                          ? new Date(t.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+                          : (t.status === 'DONE' || t.status === 'COMPLETED' ? 'Completed' : 'In Progress')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Due Date:</span>
+                      <span className={`font-mono ${t.overdue ? 'text-rose-400 font-bold' : 'text-slate-300'}`}>
+                        {t.dueDate || 'No deadline'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))

@@ -105,5 +105,9 @@ public class Employee360DashboardDTO {
         private String dueDate;
         private boolean overdue;
         private String projectName;
+        private String assignedAt;
+        private String startedAt;
+        private String completedAt;
+        private long reviewCount;
     }
 }

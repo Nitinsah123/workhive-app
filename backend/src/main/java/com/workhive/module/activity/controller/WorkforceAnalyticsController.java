@@ -47,7 +47,7 @@ public class WorkforceAnalyticsController {
     /**
      * 360° Employee Activity & Performance Dashboard (Power BI style metrics & telemetry).
      */
-    @GetMapping({"/api/v1/analytics/employees/{userId}/360", "/api/analytics/employees/{userId}/360"})
+    @GetMapping({"/api/v1/analytics/employees/{userId}/360", "/api/analytics/employees/{userId}/360", "/api/employees/{userId}/360", "/api/v1/employees/{userId}/360"})
     @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'MANAGER', 'EMPLOYEE')")
     public ResponseEntity<Employee360DashboardDTO> getEmployee360Dashboard(
             @PathVariable UUID userId,

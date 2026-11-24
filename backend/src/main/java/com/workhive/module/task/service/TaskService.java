@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -111,6 +112,9 @@ public class TaskService {
                 .estimatedHours(request.getEstimatedHours())
                 .actualHours(BigDecimal.ZERO)
                 .milestoneId(request.getMilestoneId())
+                .assignedAt(request.getAssigneeId() != null ? Instant.now() : null)
+                .startedAt("IN_PROGRESS".equalsIgnoreCase(request.getStatus()) ? Instant.now() : null)
+                .completedAt(("COMPLETED".equalsIgnoreCase(request.getStatus()) || "DONE".equalsIgnoreCase(request.getStatus())) ? Instant.now() : null)
                 .build();
 
         task = taskRepository.save(task);
@@ -179,6 +183,7 @@ public class TaskService {
         if (request.getAssigneeId() != null && !request.getAssigneeId().equals(task.getAssigneeId())) {
             recordHistory(id, tenantId, userId, "assignee", String.valueOf(task.getAssigneeId()), String.valueOf(request.getAssigneeId()));
             task.setAssigneeId(request.getAssigneeId());
+            task.setAssignedAt(Instant.now());
             // Notify new assignee
             notificationService.createNotification(tenantId, request.getAssigneeId(), "TASK_ASSIGNED",
                     "Task Assigned", "You were assigned task: " + task.getTitle(),
@@ -190,7 +195,16 @@ public class TaskService {
         }
         if (request.getStatus() != null && !request.getStatus().equals(task.getStatus())) {
             recordHistory(id, tenantId, userId, "status", task.getStatus(), request.getStatus());
-            task.setStatus(request.getStatus());
+            String newSt = request.getStatus().toUpperCase();
+            task.setStatus(newSt);
+            if ("IN_PROGRESS".equals(newSt) && task.getStartedAt() == null) {
+                task.setStartedAt(Instant.now());
+            }
+            if ("COMPLETED".equals(newSt) || "DONE".equals(newSt)) {
+                task.setCompletedAt(Instant.now());
+            } else if (task.getCompletedAt() != null) {
+                task.setCompletedAt(null);
+            }
         }
         if (request.getDueDate() != null && !request.getDueDate().equals(task.getDueDate())) {
             recordHistory(id, tenantId, userId, "dueDate", String.valueOf(task.getDueDate()), String.valueOf(request.getDueDate()));
@@ -287,6 +301,14 @@ public class TaskService {
         String newStatus = request.getStatus().toUpperCase();
 
         task.setStatus(newStatus);
+        if ("IN_PROGRESS".equals(newStatus) && task.getStartedAt() == null) {
+            task.setStartedAt(Instant.now());
+        }
+        if ("COMPLETED".equals(newStatus) || "DONE".equals(newStatus)) {
+            task.setCompletedAt(Instant.now());
+        } else if (task.getCompletedAt() != null) {
+            task.setCompletedAt(null);
+        }
         recordHistory(id, tenantId, userId, "status", oldStatus, newStatus);
 
         if (request.getComment() != null && !request.getComment().isBlank()) {
