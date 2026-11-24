@@ -22,5 +22,7 @@ public interface EmployeeActivityEventRepository extends JpaRepository<EmployeeA
 
     List<EmployeeActivityEvent> findByTenantIdAndUserIdAndCreatedAtAfterOrderByCreatedAtAsc(UUID tenantId, UUID userId, Instant after);
 
+    List<EmployeeActivityEvent> findByTenantIdAndUserIdAndCreatedAtBetween(UUID tenantId, UUID userId, Instant start, Instant end);
+
     List<EmployeeActivityEvent> findByTenantIdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
 }

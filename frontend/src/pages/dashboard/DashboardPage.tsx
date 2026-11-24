@@ -24,9 +24,10 @@ import {
   Sparkles,
   ArrowUpRight,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const DashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, tenant } = useAuthStore();
   const queryClient = useQueryClient();
   const isAdmin = user?.role === 'TENANT_ADMIN';
@@ -76,6 +77,8 @@ export const DashboardPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['today-attendance'] });
       queryClient.invalidateQueries({ queryKey: ['my-work-report'] });
+      queryClient.invalidateQueries({ queryKey: ['org-report'] });
+      queryClient.invalidateQueries({ queryKey: ['my-attendance'] });
     },
   });
 
@@ -84,6 +87,8 @@ export const DashboardPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['today-attendance'] });
       queryClient.invalidateQueries({ queryKey: ['my-work-report'] });
+      queryClient.invalidateQueries({ queryKey: ['org-report'] });
+      queryClient.invalidateQueries({ queryKey: ['my-attendance'] });
     },
   });
 
@@ -116,39 +121,55 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Quick Attendance Widget */}
-        <div className="glass-card p-4 rounded-2xl border border-slate-800 flex items-center gap-4 self-start md:self-auto">
+        <div
+          onClick={() => navigate('/attendance')}
+          className="glass-card p-4 rounded-2xl border border-slate-800 flex items-center gap-4 self-start md:self-auto cursor-pointer hover:border-slate-700 hover:scale-[1.015] active:scale-[0.99] transition-all select-none"
+          title="Click to view full attendance history"
+        >
           <div className="flex flex-col">
             <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
               Today's Attendance
             </span>
             <span className="text-sm font-bold text-slate-200 mt-0.5">
               {todayAttendance?.checkedIn
-                ? todayAttendance?.status === 'CHECKED_IN'
-                  ? '🟢 Checked In'
-                  : '⚪ Checked Out'
+                ? '🟢 Active Session'
+                : todayAttendance?.status === 'CHECKED_OUT'
+                ? '⚪ Checked Out'
                 : '🟡 Not Checked In'}
             </span>
           </div>
 
-          {!todayAttendance?.checkedIn ? (
+          {todayAttendance?.checkedIn ? (
             <button
-              onClick={() => checkInMutation.mutate()}
-              disabled={checkInMutation.isPending}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 flex items-center gap-1.5 transition-all"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Check In</span>
-            </button>
-          ) : todayAttendance?.status === 'CHECKED_IN' ? (
-            <button
-              onClick={() => checkOutMutation.mutate()}
+              onClick={(e) => {
+                e.stopPropagation();
+                checkOutMutation.mutate();
+              }}
               disabled={checkOutMutation.isPending}
               className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/25 flex items-center gap-1.5 transition-all"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
-              <span>Check Out</span>
+              <span>{checkOutMutation.isPending ? 'Checking out...' : 'Check Out'}</span>
             </button>
-          ) : null}
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                checkInMutation.mutate();
+              }}
+              disabled={checkInMutation.isPending}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 flex items-center gap-1.5 transition-all"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>
+                {checkInMutation.isPending
+                  ? 'Checking in...'
+                  : todayAttendance?.status === 'CHECKED_OUT'
+                  ? 'Re-Check In'
+                  : 'Check In'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -161,6 +182,7 @@ export const DashboardPage: React.FC = () => {
             subtitle={`${orgReport.totalDepartments} departments • ${orgReport.totalTeams} teams`}
             icon={Users}
             color="indigo"
+            onClick={() => navigate('/people')}
           />
           <StatCard
             title="Active Projects"
@@ -168,6 +190,7 @@ export const DashboardPage: React.FC = () => {
             subtitle={`${orgReport.totalTasks} total tasks`}
             icon={FolderKanban}
             color="sky"
+            onClick={() => navigate('/projects')}
           />
           <StatCard
             title="Action Center Pending"
@@ -175,6 +198,7 @@ export const DashboardPage: React.FC = () => {
             subtitle={`${actionSummary?.pendingLeaves || 0} leaves • ${actionSummary?.pendingTaskReviews || 0} reviews`}
             icon={Inbox}
             color="amber"
+            onClick={() => navigate('/action-center')}
           />
           <StatCard
             title="Present Today"
@@ -182,6 +206,7 @@ export const DashboardPage: React.FC = () => {
             subtitle="Employees checked in"
             icon={Clock}
             color="emerald"
+            onClick={() => navigate('/attendance')}
           />
         </div>
       )}
@@ -195,6 +220,7 @@ export const DashboardPage: React.FC = () => {
             subtitle={`${empReport.completedTasks} completed`}
             icon={CheckSquare}
             color="indigo"
+            onClick={() => navigate('/tasks')}
           />
           <StatCard
             title="Completion Rate"
@@ -202,6 +228,7 @@ export const DashboardPage: React.FC = () => {
             subtitle="Overall performance"
             icon={TrendingUp}
             color="emerald"
+            onClick={() => navigate('/reports')}
           />
           <StatCard
             title="Overdue Tasks"
@@ -209,6 +236,7 @@ export const DashboardPage: React.FC = () => {
             subtitle={empReport.overdueTasks > 0 ? 'Requires attention' : 'All on track'}
             icon={AlertTriangle}
             color={empReport.overdueTasks > 0 ? 'rose' : 'emerald'}
+            onClick={() => navigate('/tasks?filter=overdue')}
           />
           <StatCard
             title="Hours Logged (30d)"
@@ -216,6 +244,7 @@ export const DashboardPage: React.FC = () => {
             subtitle={`${empReport.daysPresent} days present`}
             icon={Clock}
             color="violet"
+            onClick={() => navigate('/attendance')}
           />
         </div>
       )}

@@ -142,6 +142,8 @@ public class ProjectService {
         UUID userId = TenantContext.requireUserId();
 
         Project project = getProject(id);
+        project.setIsDeleted(true);
+        project.setDeletedAt(Instant.now());
         project.setStatus("ARCHIVED");
         projectRepository.save(project);
         auditService.log(tenantId, userId, "PROJECT_ARCHIVED", "PROJECT", project.getId(), null, null);
@@ -152,7 +154,11 @@ public class ProjectService {
         UUID tenantId = TenantContext.requireTenantId();
         UUID userId = TenantContext.requireUserId();
 
-        Project project = getProject(id);
+        Project project = projectRepository.findById(id)
+                .filter(p -> p.getTenantId().equals(tenantId))
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
+        project.setIsDeleted(false);
+        project.setDeletedAt(null);
         project.setStatus("ACTIVE");
         projectRepository.save(project);
         auditService.log(tenantId, userId, "PROJECT_RESTORED", "PROJECT", project.getId(), null, null);
@@ -168,21 +174,34 @@ public class ProjectService {
             throw new com.workhive.common.exception.BadRequestException("Only Tenant Admins can permanently delete projects");
         }
 
-        Project project = getProject(id);
+        Project project = projectRepository.findById(id)
+                .filter(p -> p.getTenantId().equals(tenantId))
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
 
-        // 1. Clean task children for all tasks in this project
-        entityManager.createNativeQuery("DELETE FROM task_comments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM task_submissions WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM task_attachments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM task_history WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM subtasks WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)").setParameter("pid", id).executeUpdate();
+        // 1. Detach COMPLETED / DONE tasks so historical user metrics & completion rate are preserved!
+        entityManager.createNativeQuery("UPDATE tasks SET project_id = NULL WHERE project_id = :pid AND (status = 'COMPLETED' OR status = 'DONE')")
+                .setParameter("pid", id).executeUpdate();
 
-        // 2. Detach or clean time entries and activities
-        entityManager.createNativeQuery("UPDATE time_entries SET project_id = NULL, task_id = NULL WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
-        entityManager.createNativeQuery("UPDATE work_activities SET project_id = NULL, task_id = NULL WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        // 2. Clean task children ONLY for incomplete tasks in this project
+        entityManager.createNativeQuery("DELETE FROM task_comments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)")
+                .setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_submissions WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)")
+                .setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_attachments WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)")
+                .setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM task_history WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)")
+                .setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM subtasks WHERE task_id IN (SELECT id FROM tasks WHERE project_id = :pid)")
+                .setParameter("pid", id).executeUpdate();
 
-        // 3. Clean project members, tasks, and milestones
+        // 3. Delete only remaining incomplete tasks
         entityManager.createNativeQuery("DELETE FROM tasks WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+
+        // 4. Detach or clean time entries and activities
+        entityManager.createNativeQuery("UPDATE time_entries SET project_id = NULL WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE work_activities SET project_id = NULL WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
+
+        // 5. Clean project members and milestones
         entityManager.createNativeQuery("DELETE FROM milestones WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM project_members WHERE project_id = :pid").setParameter("pid", id).executeUpdate();
 

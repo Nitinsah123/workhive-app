@@ -51,6 +51,12 @@ public class Project {
     @Column(nullable = false) @Builder.Default
     private String health = "ON_TRACK";
 
+    @Column(name = "is_deleted", nullable = false) @Builder.Default
+    private Boolean isDeleted = false;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false) @Builder.Default
     private Instant createdAt = Instant.now();
 

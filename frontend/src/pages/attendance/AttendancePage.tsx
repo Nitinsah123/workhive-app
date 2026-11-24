@@ -48,6 +48,8 @@ export const AttendancePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['today-attendance'] });
       queryClient.invalidateQueries({ queryKey: ['my-attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['my-work-report'] });
+      queryClient.invalidateQueries({ queryKey: ['org-report'] });
     },
   });
 
@@ -56,6 +58,8 @@ export const AttendancePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['today-attendance'] });
       queryClient.invalidateQueries({ queryKey: ['my-attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['my-work-report'] });
+      queryClient.invalidateQueries({ queryKey: ['org-report'] });
     },
   });
 
@@ -125,40 +129,46 @@ export const AttendancePage: React.FC = () => {
           </span>
           <div className="text-2xl font-black font-display text-white">
             {today?.checkedIn
-              ? today?.status === 'CHECKED_IN'
-                ? '🟢 Active Work Session'
-                : '⚪ Session Completed for Today'
+              ? '🟢 Active Work Session'
+              : today?.status === 'CHECKED_OUT'
+              ? '⚪ Checked Out (Ready to Re-Check In)'
               : '🟡 Not Checked In Today'}
           </div>
           {today?.record?.checkIn && (
             <p className="text-xs text-slate-400">
-              Checked in at {new Date(today.record.checkIn).toLocaleTimeString()}
+              {today.checkedIn ? 'Started at ' : 'Last session at '}
+              {new Date(today.record.checkIn).toLocaleTimeString()}
               {today.record.durationMinutes ? ` • Duration: ${today.record.durationMinutes} mins` : ''}
+              {(today as any)?.totalMinutesToday ? ` • Total Today: ${Math.floor((today as any).totalMinutesToday / 60)}h ${(today as any).totalMinutesToday % 60}m` : ''}
             </p>
           )}
         </div>
 
         <div className="flex items-center gap-3">
-          {!today?.checkedIn ? (
-            <button
-              onClick={() => checkInMutation.mutate()}
-              disabled={checkInMutation.isPending}
-              className="px-8 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base shadow-xl shadow-emerald-600/30 flex items-center gap-2.5 transition-all"
-            >
-              <Play className="w-5 h-5 fill-current" />
-              <span>Check In Now</span>
-            </button>
-          ) : today?.status === 'CHECKED_IN' ? (
+          {today?.checkedIn ? (
             <button
               onClick={() => checkOutMutation.mutate()}
               disabled={checkOutMutation.isPending}
               className="px-8 py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-base shadow-xl shadow-rose-600/30 flex items-center gap-2.5 transition-all"
             >
               <Square className="w-5 h-5 fill-current" />
-              <span>Check Out</span>
+              <span>{checkOutMutation.isPending ? 'Checking out...' : 'Check Out'}</span>
             </button>
           ) : (
-            <span className="text-xs text-slate-500 italic">Day Completed</span>
+            <button
+              onClick={() => checkInMutation.mutate()}
+              disabled={checkInMutation.isPending}
+              className="px-8 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base shadow-xl shadow-emerald-600/30 flex items-center gap-2.5 transition-all"
+            >
+              <Play className="w-5 h-5 fill-current" />
+              <span>
+                {checkInMutation.isPending
+                  ? 'Checking in...'
+                  : today?.status === 'CHECKED_OUT'
+                  ? 'Re-Check In Now'
+                  : 'Check In Now'}
+              </span>
+            </button>
           )}
         </div>
       </div>

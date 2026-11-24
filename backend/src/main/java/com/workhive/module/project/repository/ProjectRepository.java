@@ -13,17 +13,27 @@ import java.util.UUID;
 
 @Repository
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
-    Page<Project> findByTenantId(UUID tenantId, Pageable pageable);
-    Optional<Project> findByIdAndTenantId(UUID id, UUID tenantId);
-    List<Project> findByTenantIdAndStatus(UUID tenantId, String status);
-    long countByTenantId(UUID tenantId);
-    long countByTenantIdAndStatus(UUID tenantId, String status);
 
-    @Query("SELECT p FROM Project p WHERE p.tenantId = :tenantId AND " +
+    @Query("SELECT p FROM Project p WHERE p.tenantId = :tenantId AND (p.isDeleted = false OR p.isDeleted IS NULL)")
+    Page<Project> findByTenantId(@Param("tenantId") UUID tenantId, Pageable pageable);
+
+    @Query("SELECT p FROM Project p WHERE p.id = :id AND p.tenantId = :tenantId AND (p.isDeleted = false OR p.isDeleted IS NULL)")
+    Optional<Project> findByIdAndTenantId(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
+
+    @Query("SELECT p FROM Project p WHERE p.tenantId = :tenantId AND p.status = :status AND (p.isDeleted = false OR p.isDeleted IS NULL)")
+    List<Project> findByTenantIdAndStatus(@Param("tenantId") UUID tenantId, @Param("status") String status);
+
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.tenantId = :tenantId AND (p.isDeleted = false OR p.isDeleted IS NULL)")
+    long countByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.tenantId = :tenantId AND p.status = :status AND (p.isDeleted = false OR p.isDeleted IS NULL)")
+    long countByTenantIdAndStatus(@Param("tenantId") UUID tenantId, @Param("status") String status);
+
+    @Query("SELECT p FROM Project p WHERE p.tenantId = :tenantId AND (p.isDeleted = false OR p.isDeleted IS NULL) AND " +
            "(LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(p.description) LIKE LOWER(CONCAT('%', :q, '%')))")
     Page<Project> searchByTenant(@Param("tenantId") UUID tenantId, @Param("q") String query, Pageable pageable);
 
-    @Query("SELECT p FROM Project p WHERE p.tenantId = :tenantId AND p.status IN :statuses")
+    @Query("SELECT p FROM Project p WHERE p.tenantId = :tenantId AND (p.isDeleted = false OR p.isDeleted IS NULL) AND p.status IN :statuses")
     Page<Project> findByTenantIdAndStatusIn(@Param("tenantId") UUID tenantId,
-                                             @Param("statuses") List<String> statuses, Pageable pageable);
+                                            @Param("statuses") List<String> statuses, Pageable pageable);
 }

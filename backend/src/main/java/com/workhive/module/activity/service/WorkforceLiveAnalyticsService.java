@@ -515,10 +515,11 @@ public class WorkforceLiveAnalyticsService {
      * Otherwise strictly Offline.
      */
     private String determinePresenceStatus(UUID tenantId, User u, LocalDate today) {
-        Optional<Attendance> attendanceOpt = attendanceRepository.findByTenantIdAndUserIdAndDate(tenantId, u.getId(), today);
+        Optional<Attendance> attendanceOpt = attendanceRepository
+                .findFirstByTenantIdAndUserIdAndDateAndCheckOutIsNullOrderByCreatedAtDesc(tenantId, u.getId(), today);
         if (attendanceOpt.isPresent()) {
             Attendance att = attendanceOpt.get();
-            if (att.getCheckIn() != null && att.getCheckOut() == null) {
+            if (att.getCheckIn() != null) {
                 // User is currently checked in! Check recency of telemetry/events
                 List<EmployeeActivityEvent> recentEvents = employeeActivityEventRepository.findByTenantIdAndUserIdOrderByCreatedAtDesc(
                         tenantId, u.getId(), PageRequest.of(0, 1));
@@ -563,24 +564,13 @@ public class WorkforceLiveAnalyticsService {
 
     private String resolveOrganizationalRole(User u) {
         String role = u.getRole() != null ? u.getRole().toUpperCase() : "EMPLOYEE";
-        String name = u.getFullName() != null ? u.getFullName().toLowerCase() : "";
-
         if ("TENANT_ADMIN".equals(role)) {
-            return "Department Head / VP Eng";
+            return "Admin";
         }
         if ("MANAGER".equals(role)) {
-            return "Lead Systems Architect";
+            return "Manager";
         }
-        if (name.contains("front") || name.contains("react") || name.contains("ui")) {
-            return "Senior Frontend Engineer";
-        }
-        if (name.contains("qa") || name.contains("test")) {
-            return "QA Automation Lead";
-        }
-        if (name.contains("data") || name.contains("bi")) {
-            return "Data & Analytics Specialist";
-        }
-        return "Senior Java / Full Stack Engineer";
+        return "Employee";
     }
 
     private TaskSummaryItemDto mapTaskSummary(Task t, long reviewCount) {
@@ -604,48 +594,81 @@ public class WorkforceLiveAnalyticsService {
     }
 
     /**
-     * Builds hourly activity (09:00 - 18:00) using real attendance check-in and time entries.
+     * Builds hourly activity (09:00 - 18:00) using real attendance check-in sessions, git telemetry, and task time entries.
      */
     private List<HourlyActivityPointDto> buildHourlyActivity(UUID tenantId, UUID userId, LocalDate today,
                                                             List<Attendance> attendances, List<TimeEntry> timeEntries) {
         List<HourlyActivityPointDto> points = new ArrayList<>();
         ZoneId zone = ZoneId.systemDefault();
 
-        // Check if user has an attendance record today
-        Attendance todayAtt = attendances.stream()
+        // 1. Find all attendance sessions for today
+        List<Attendance> sessionsToday = attendances.stream()
                 .filter(a -> today.equals(a.getDate()))
-                .findFirst()
-                .orElse(null);
+                .toList();
 
-        Instant checkIn = todayAtt != null ? todayAtt.getCheckIn() : null;
-        Instant checkOut = todayAtt != null ? (todayAtt.getCheckOut() != null ? todayAtt.getCheckOut() : Instant.now()) : null;
+        // If today has no attendance records, check for the most recent attendance date in the queried range
+        List<Attendance> targetSessions = !sessionsToday.isEmpty() ? sessionsToday :
+                attendances.stream().max(Comparator.comparing(Attendance::getDate))
+                        .map(latest -> attendances.stream().filter(a -> a.getDate().equals(latest.getDate())).toList())
+                        .orElse(List.of());
+
+        LocalDate activeDate = !targetSessions.isEmpty() ? targetSessions.get(0).getDate() : today;
+
+        Instant dayStart = activeDate.atStartOfDay(zone).toInstant();
+        Instant dayEnd = activeDate.plusDays(1).atStartOfDay(zone).toInstant();
+
+        // Pull events for this user on this active date (git pushes, task updates, heartbeats)
+        List<EmployeeActivityEvent> dayEvents = Collections.emptyList();
+        try {
+            dayEvents = employeeActivityEventRepository.findByTenantIdAndUserIdAndCreatedAtBetween(
+                    tenantId, userId, dayStart, dayEnd);
+        } catch (Exception ignored) {}
 
         for (int hour = 9; hour <= 18; hour++) {
             String hourLabel = String.format("%02d:00", hour);
-            Instant slotStart = today.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant();
+            Instant slotStart = activeDate.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant();
             Instant slotEnd = (hour == 18) ?
-                    today.atTime(LocalTime.of(18, 59, 59)).atZone(zone).toInstant() :
-                    today.atTime(LocalTime.of(hour + 1, 0)).atZone(zone).toInstant();
+                    activeDate.atTime(LocalTime.of(18, 59, 59)).atZone(zone).toInstant() :
+                    activeDate.atTime(LocalTime.of(hour + 1, 0)).atZone(zone).toInstant();
+
+            int presentMinutes = 0;
+            for (Attendance att : targetSessions) {
+                if (att.getCheckIn() != null) {
+                    Instant end = att.getCheckOut() != null ? att.getCheckOut() : (activeDate.equals(LocalDate.now()) ? Instant.now() : att.getCheckIn().plus(8, ChronoUnit.HOURS));
+                    if (att.getCheckIn().isBefore(slotEnd) && end.isAfter(slotStart)) {
+                        Instant pStart = att.getCheckIn().isAfter(slotStart) ? att.getCheckIn() : slotStart;
+                        Instant pEnd = end.isBefore(slotEnd) ? end : slotEnd;
+                        presentMinutes += (int) Math.max(0, Duration.between(pStart, pEnd).toMinutes());
+                    }
+                }
+            }
+            presentMinutes = Math.min(60, presentMinutes);
+
+            // Time entries in this slot
+            int timeEntryMins = 0;
+            for (TimeEntry te : timeEntries) {
+                if (te.getCreatedAt() != null && te.getCreatedAt().isAfter(slotStart) && te.getCreatedAt().isBefore(slotEnd)) {
+                    timeEntryMins += te.getDurationMinutes() != null ? te.getDurationMinutes() : 0;
+                }
+            }
+
+            // Events count in this slot (git commits, task status transitions, telemetry)
+            final Instant fSlotStart = slotStart;
+            final Instant fSlotEnd = slotEnd;
+            long eventsInSlot = dayEvents.stream()
+                    .filter(ev -> ev.getCreatedAt() != null && ev.getCreatedAt().isAfter(fSlotStart) && ev.getCreatedAt().isBefore(fSlotEnd))
+                    .count();
 
             int activeMins = 0;
             int idleMins = 0;
 
-            if (checkIn != null && checkOut != null && checkIn.isBefore(slotEnd) && checkOut.isAfter(slotStart)) {
-                // User was present during this hour slot
-                Instant presenceStart = checkIn.isAfter(slotStart) ? checkIn : slotStart;
-                Instant presenceEnd = checkOut.isBefore(slotEnd) ? checkOut : slotEnd;
-                int presentMinutes = (int) Math.max(0, Math.min(60, Duration.between(presenceStart, presenceEnd).toMinutes()));
-
-                // Check time entry minutes inside this hour slot
-                int timeEntryMins = 0;
-                for (TimeEntry te : timeEntries) {
-                    if (te.getCreatedAt() != null && te.getCreatedAt().isAfter(slotStart) && te.getCreatedAt().isBefore(slotEnd)) {
-                        timeEntryMins += te.getDurationMinutes() != null ? te.getDurationMinutes() : 0;
-                    }
-                }
-
-                activeMins = Math.min(presentMinutes, Math.max(timeEntryMins, (int) Math.round(presentMinutes * 0.85)));
+            if (presentMinutes > 0) {
+                int eventMinutes = (int) Math.min(presentMinutes, eventsInSlot * 15);
+                activeMins = Math.min(presentMinutes, Math.max(timeEntryMins, Math.max(eventMinutes, (int) Math.round(presentMinutes * 0.85))));
                 idleMins = Math.max(0, presentMinutes - activeMins);
+            } else if (eventsInSlot > 0 || timeEntryMins > 0) {
+                activeMins = (int) Math.min(60, Math.max(timeEntryMins, eventsInSlot * 20));
+                idleMins = 0;
             }
 
             points.add(HourlyActivityPointDto.builder()
@@ -691,16 +714,16 @@ public class WorkforceLiveAnalyticsService {
         int taskScore = tasks.isEmpty() ? 70 : (int) Math.min(98, Math.max(60, (completed * 100) / tasks.size()));
         int gitScore = (int) Math.min(98, Math.max(65, 75 + (gitCommits * 3)));
 
-        String role = resolveOrganizationalRole(user).toLowerCase();
-        if (role.contains("frontend") || role.contains("ui")) {
+        String rawRole = user.getRole() != null ? user.getRole().toUpperCase() : "EMPLOYEE";
+        if ("TENANT_ADMIN".equals(rawRole)) {
             return List.of(
-                    RolePerformanceRadarDto.builder().subject("UI Delivery").score(taskScore).benchmark(80).build(),
-                    RolePerformanceRadarDto.builder().subject("Component Quality").score(baseScore).benchmark(75).build(),
-                    RolePerformanceRadarDto.builder().subject("PR Velocity").score(gitScore).benchmark(72).build(),
-                    RolePerformanceRadarDto.builder().subject("Design System").score(Math.min(95, baseScore + 4)).benchmark(82).build(),
-                    RolePerformanceRadarDto.builder().subject("Bug Resolution").score(taskScore).benchmark(78).build()
+                    RolePerformanceRadarDto.builder().subject("Strategic Execution").score(taskScore).benchmark(85).build(),
+                    RolePerformanceRadarDto.builder().subject("Organizational Health").score(baseScore).benchmark(80).build(),
+                    RolePerformanceRadarDto.builder().subject("Resource Allocation").score(gitScore).benchmark(75).build(),
+                    RolePerformanceRadarDto.builder().subject("SLA Compliance").score(taskScore).benchmark(85).build(),
+                    RolePerformanceRadarDto.builder().subject("Operational Oversight").score(Math.min(96, baseScore + 5)).benchmark(78).build()
             );
-        } else if (role.contains("lead") || role.contains("head") || role.contains("manager")) {
+        } else if ("MANAGER".equals(rawRole)) {
             return List.of(
                     RolePerformanceRadarDto.builder().subject("Sprint Velocity").score(taskScore).benchmark(82).build(),
                     RolePerformanceRadarDto.builder().subject("System Architecture").score(baseScore).benchmark(80).build(),
@@ -710,11 +733,11 @@ public class WorkforceLiveAnalyticsService {
             );
         } else {
             return List.of(
-                    RolePerformanceRadarDto.builder().subject("API Throughput").score(taskScore).benchmark(78).build(),
-                    RolePerformanceRadarDto.builder().subject("DB Performance").score(baseScore).benchmark(74).build(),
+                    RolePerformanceRadarDto.builder().subject("Task Execution").score(taskScore).benchmark(78).build(),
+                    RolePerformanceRadarDto.builder().subject("Sprint Delivery").score(baseScore).benchmark(74).build(),
                     RolePerformanceRadarDto.builder().subject("Code Reliability").score(gitScore).benchmark(80).build(),
                     RolePerformanceRadarDto.builder().subject("Bug Resolution").score(taskScore).benchmark(82).build(),
-                    RolePerformanceRadarDto.builder().subject("Test Coverage").score(Math.min(95, baseScore + 2)).benchmark(75).build()
+                    RolePerformanceRadarDto.builder().subject("Work Quality").score(Math.min(95, baseScore + 2)).benchmark(75).build()
             );
         }
     }

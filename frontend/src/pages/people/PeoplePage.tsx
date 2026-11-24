@@ -458,7 +458,7 @@ export const PeoplePage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-xs px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                        {u.role === 'TENANT_ADMIN' ? 'Admin' : u.role}
+                        {u.role === 'TENANT_ADMIN' ? 'Admin' : u.role === 'MANAGER' ? 'Manager' : 'Employee'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -994,7 +994,7 @@ export const PeoplePage: React.FC = () => {
                     <h3 className="text-lg font-bold text-white truncate max-w-sm sm:max-w-md">{selectedUser360.fullName}</h3>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 whitespace-nowrap flex-shrink-0">
-                        {selectedUser360.role}
+                        {selectedUser360.role === 'TENANT_ADMIN' ? 'Admin' : selectedUser360.role === 'MANAGER' ? 'Manager' : 'Employee'}
                       </span>
                       <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border whitespace-nowrap flex-shrink-0 ${
                         selectedUser360.status === 'ACTIVE'

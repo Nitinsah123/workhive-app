@@ -8,6 +8,8 @@ interface StatCardProps {
   icon: LucideIcon;
   color?: 'indigo' | 'emerald' | 'amber' | 'rose' | 'sky' | 'violet';
   trend?: string;
+  onClick?: () => void;
+  className?: string;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -17,6 +19,8 @@ export const StatCard: React.FC<StatCardProps> = ({
   icon: Icon,
   color = 'indigo',
   trend,
+  onClick,
+  className = '',
 }) => {
   const colorMap = {
     indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
@@ -28,7 +32,17 @@ export const StatCard: React.FC<StatCardProps> = ({
   };
 
   return (
-    <div className="glass-card glass-card-hover p-5 rounded-2xl">
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className={`glass-card glass-card-hover p-5 rounded-2xl ${
+        onClick
+          ? 'cursor-pointer hover:border-slate-700 hover:scale-[1.015] active:scale-[0.985] transition-all select-none'
+          : ''
+      } ${className}`}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
           {title}

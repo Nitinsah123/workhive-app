@@ -57,6 +57,7 @@ export const Employee360Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TASKS' | 'TELEMETRY'>('OVERVIEW');
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE'>('ALL');
+  const [hourlySeriesFilter, setHourlySeriesFilter] = useState<'ALL' | 'ACTIVE' | 'IDLE'>('ALL');
 
   // SSE real-time stream listener for this employee
   const { isConnected, lastEvent, events } = useActivityStream(userId);
@@ -463,13 +464,38 @@ export const Employee360Dashboard: React.FC = () => {
                     Active productive coding / task work vs. idle time per hour
                   </p>
                 </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="flex items-center gap-1.5 text-indigo-400 font-semibold">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-indigo-500" /> Active (mins)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-400 font-semibold">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-slate-700" /> Idle / Sync
-                  </span>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setHourlySeriesFilter((prev) => (prev === 'ACTIVE' ? 'ALL' : 'ACTIVE'))}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold cursor-pointer transition-all ${
+                      hourlySeriesFilter === 'ACTIVE'
+                        ? 'bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/40 shadow-sm'
+                        : hourlySeriesFilter === 'IDLE'
+                        ? 'opacity-40 hover:opacity-80 text-indigo-400'
+                        : 'text-indigo-400 hover:bg-slate-800/60'
+                    }`}
+                    title="Click to toggle Active series view"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 shrink-0" />
+                    <span>Active (mins)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHourlySeriesFilter((prev) => (prev === 'IDLE' ? 'ALL' : 'IDLE'))}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold cursor-pointer transition-all ${
+                      hourlySeriesFilter === 'IDLE'
+                        ? 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-600 shadow-sm'
+                        : hourlySeriesFilter === 'ACTIVE'
+                        ? 'opacity-40 hover:opacity-80 text-slate-400'
+                        : 'text-slate-400 hover:bg-slate-800/60'
+                    }`}
+                    title="Click to toggle Idle / Sync series view"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-sm bg-slate-700 shrink-0" />
+                    <span>Idle / Sync</span>
+                  </button>
                 </div>
               </div>
 
@@ -477,18 +503,40 @@ export const Employee360Dashboard: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dashboard.hourlyActivity}>
                     <XAxis dataKey="hour" stroke="#64748b" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} unit="m" />
+                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} unit="m" domain={[0, 60]} />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0B0F19',
-                        borderColor: '#334155',
-                        borderRadius: '1rem',
-                        fontSize: '12px',
-                        color: '#fff',
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const act = payload.find((p) => p.dataKey === 'activeMinutes')?.value ?? 0;
+                          const idle = payload.find((p) => p.dataKey === 'idleMinutes')?.value ?? 0;
+                          const total = Number(act) + Number(idle);
+                          return (
+                            <div className="p-3 rounded-2xl bg-[#0B0F19] border border-slate-700 text-xs space-y-1.5 shadow-xl">
+                              <p className="font-bold text-white font-mono">{label} Slot</p>
+                              <div className="flex items-center justify-between gap-4 text-indigo-400">
+                                <span>Active Focus:</span>
+                                <strong>{act} mins</strong>
+                              </div>
+                              <div className="flex items-center justify-between gap-4 text-slate-400">
+                                <span>Idle / In Sync:</span>
+                                <strong>{idle} mins</strong>
+                              </div>
+                              <div className="flex items-center justify-between gap-4 text-slate-300 border-t border-slate-800 pt-1 font-bold">
+                                <span>Recorded Total:</span>
+                                <span>{total} mins</span>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
                       }}
                     />
-                    <Bar dataKey="activeMinutes" name="Active" fill="#6366F1" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="idleMinutes" name="Idle" fill="#334155" radius={[4, 4, 0, 0]} />
+                    {(hourlySeriesFilter === 'ALL' || hourlySeriesFilter === 'ACTIVE') && (
+                      <Bar dataKey="activeMinutes" name="Active" fill="#6366F1" radius={[4, 4, 0, 0]} stackId="a" />
+                    )}
+                    {(hourlySeriesFilter === 'ALL' || hourlySeriesFilter === 'IDLE') && (
+                      <Bar dataKey="idleMinutes" name="Idle" fill="#334155" radius={[4, 4, 0, 0]} stackId="a" />
+                    )}
                   </BarChart>
                 </ResponsiveContainer>
               </div>

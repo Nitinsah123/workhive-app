@@ -36,12 +36,7 @@ public class AttendanceController {
 
     @GetMapping("/today")
     public ResponseEntity<Map<String, Object>> getTodayStatus() {
-        Optional<Attendance> today = attendanceService.getTodayAttendance();
-        Map<String, Object> response = new java.util.HashMap<>();
-        response.put("checkedIn", today.isPresent());
-        response.put("status", today.map(Attendance::getStatus).orElse("NOT_CHECKED_IN"));
-        response.put("record", today.orElse(null));
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(attendanceService.getTodayAttendanceStatus());
     }
 
     @GetMapping("/my")

@@ -38,6 +38,9 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditService auditService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.workhive.module.attendance.service.AttendanceService attendanceService;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -227,6 +230,15 @@ public class AuthService {
         // Update last login
         user.setLastLoginAt(Instant.now());
         userRepository.save(user);
+
+        // Auto Check-In on Login if no active session today
+        if (attendanceService != null) {
+            try {
+                attendanceService.autoCheckInOnLogin(user.getTenantId(), user.getId(), tenant.getTimezone());
+            } catch (Exception e) {
+                log.warn("Auto check-in on login failed: {}", e.getMessage());
+            }
+        }
 
         // Audit
         auditService.log(tenant.getId(), user.getId(), "USER_LOGIN", "USER", user.getId(), null, null);
