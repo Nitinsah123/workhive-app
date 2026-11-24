@@ -4,6 +4,8 @@ import com.workhive.module.team.entity.Team;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
@@ -20,4 +22,8 @@ public interface TeamRepository extends JpaRepository<Team, UUID> {
     Optional<Team> findByIdAndTenantId(UUID id, UUID tenantId);
     boolean existsByTenantIdAndName(UUID tenantId, String name);
     long countByTenantId(UUID tenantId);
+
+    @Query("SELECT t FROM Team t WHERE t.tenantId = :tenantId AND (t.status IS NULL OR t.status <> 'ARCHIVED') " +
+           "AND (LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(t.description) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<Team> searchByTenant(@Param("tenantId") UUID tenantId, @Param("q") String query, Pageable pageable);
 }

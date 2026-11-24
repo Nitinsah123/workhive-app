@@ -46,6 +46,14 @@ export const NotificationsPage: React.FC = () => {
     }
     if (item.actionUrl) {
       navigate(item.actionUrl);
+    } else if (item.entityType === 'TASK' && item.entityId) {
+      navigate(`/tasks?taskId=${item.entityId}`);
+    } else if (item.entityType === 'PROJECT' && item.entityId) {
+      navigate(`/projects/${item.entityId}`);
+    } else if (item.type?.includes('LEAVE') || item.title?.toLowerCase().includes('leave')) {
+      navigate('/leave');
+    } else if (item.type?.includes('ANNOUNCEMENT') || item.title?.toLowerCase().includes('announcement')) {
+      navigate('/announcements');
     }
   };
 

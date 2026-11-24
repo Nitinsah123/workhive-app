@@ -789,7 +789,9 @@ export const Employee360Dashboard: React.FC = () => {
               filteredTasks.map((t) => (
                 <div
                   key={t.id}
-                  className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all space-y-3"
+                  onClick={() => navigate(`/tasks?taskId=${t.id}`)}
+                  className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/40 cursor-pointer transition-all space-y-3 group"
+                  title="Click to open task in Kanban"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-1">

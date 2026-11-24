@@ -1,11 +1,15 @@
 package com.workhive.module.search.service;
 
+import com.workhive.module.department.entity.Department;
+import com.workhive.module.department.repository.DepartmentRepository;
 import com.workhive.module.document.entity.Document;
 import com.workhive.module.document.repository.DocumentRepository;
 import com.workhive.module.project.entity.Project;
 import com.workhive.module.project.repository.ProjectRepository;
 import com.workhive.module.task.entity.Task;
 import com.workhive.module.task.repository.TaskRepository;
+import com.workhive.module.team.entity.Team;
+import com.workhive.module.team.repository.TeamRepository;
 import com.workhive.module.user.entity.User;
 import com.workhive.module.user.repository.UserRepository;
 import com.workhive.security.TenantContext;
@@ -24,15 +28,21 @@ public class SearchService {
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
     private final DocumentRepository documentRepository;
+    private final DepartmentRepository departmentRepository;
+    private final TeamRepository teamRepository;
 
     public SearchService(UserRepository userRepository,
                          ProjectRepository projectRepository,
                          TaskRepository taskRepository,
-                         DocumentRepository documentRepository) {
+                         DocumentRepository documentRepository,
+                         DepartmentRepository departmentRepository,
+                         TeamRepository teamRepository) {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.taskRepository = taskRepository;
         this.documentRepository = documentRepository;
+        this.departmentRepository = departmentRepository;
+        this.teamRepository = teamRepository;
     }
 
     public Map<String, Object> globalSearch(String query) {
@@ -49,11 +59,15 @@ public class SearchService {
         List<Project> projects = projectRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
         List<Task> tasks = taskRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
         List<Document> documents = documentRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
+        List<Department> departments = departmentRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
+        List<Team> teams = teamRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
 
         results.put("users", users);
         results.put("projects", projects);
         results.put("tasks", tasks);
         results.put("documents", documents);
+        results.put("departments", departments);
+        results.put("teams", teams);
 
         return results;
     }

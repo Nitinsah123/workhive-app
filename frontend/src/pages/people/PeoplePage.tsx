@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi, departmentApi, teamApi, taskApi, reportApi, activityApi, exportApi } from '../../api/services';
 import { useAuthStore } from '../../store/authStore';
@@ -33,9 +34,12 @@ import {
   Archive,
   Trash2,
   ShieldAlert,
+  Search,
 } from 'lucide-react';
 
 export const PeoplePage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'members' | 'invitations'>('members');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -282,14 +286,6 @@ export const PeoplePage: React.FC = () => {
   const allActivities = userActivitiesData?.data?.content || [];
   const userActivities = allActivities.filter((a: any) => a.userId === selectedUser360?.id);
 
-  const filteredTeams = departmentId
-    ? teams.filter((t: any) => t.departmentId === departmentId)
-    : teams;
-
-  const filteredEditTeams = editDeptId
-    ? teams.filter((t: any) => t.departmentId === editDeptId)
-    : teams;
-
   const getDeptName = (deptId?: string) => {
     if (!deptId) return 'Unassigned';
     return depts.find((d: any) => d.id === deptId)?.name || '—';
@@ -299,6 +295,30 @@ export const PeoplePage: React.FC = () => {
     if (!tId) return 'Unassigned';
     return teams.find((t: any) => t.id === tId)?.name || '—';
   };
+
+  // Search filtered users
+  const filteredUsers = users.filter((u: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const deptName = getDeptName(u.departmentId).toLowerCase();
+    const teamName = getTeamName(u.teamId).toLowerCase();
+    return (
+      (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+      (u.employeeCode && u.employeeCode.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q)) ||
+      deptName.includes(q) ||
+      teamName.includes(q)
+    );
+  });
+
+  const filteredTeams = departmentId
+    ? teams.filter((t: any) => t.departmentId === departmentId)
+    : teams;
+
+  const filteredEditTeams = editDeptId
+    ? teams.filter((t: any) => t.departmentId === editDeptId)
+    : teams;
 
   const getManagerName = (mgrId?: string) => {
     if (!mgrId) return 'None (Direct to Org)';
@@ -365,32 +385,55 @@ export const PeoplePage: React.FC = () => {
 
       {/* Users Table */}
       {activeTab === 'members' && (
-        usersLoading ? (
-          <div className="text-center py-20 text-slate-500 text-sm">Loading people directory...</div>
-        ) : (
-          <div className="glass-panel rounded-3xl overflow-x-auto border border-slate-800">
-            <table className="w-full text-left text-sm text-slate-300 min-w-[950px]">
-              <thead className="bg-slate-900/80 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                <tr>
-                  <th className="px-6 py-4">Employee</th>
-                  <th className="px-6 py-4">Employee Code</th>
-                  <th className="px-6 py-4">Department</th>
-                  <th className="px-6 py-4">Team</th>
-                  <th className="px-6 py-4">Role</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right min-w-[340px] whitespace-nowrap">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {users.map((u: any) => (
-                  <tr
-                    key={u.id}
-                    onClick={() => {
-                      setSelectedUser360(u);
-                      setActive360Tab('overview');
-                    }}
-                    className="hover:bg-slate-800/60 cursor-pointer transition-colors group"
-                  >
+        <div className="space-y-4">
+          {/* Member Search Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search members by name, code, email, role, department..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+            <div className="text-xs text-slate-400 font-medium">
+              Showing <span className="font-bold text-white">{filteredUsers.length}</span> of {users.length} members
+            </div>
+          </div>
+
+          {usersLoading ? (
+            <div className="text-center py-20 text-slate-500 text-sm">Loading people directory...</div>
+          ) : (
+            <div className="glass-panel rounded-3xl overflow-x-auto border border-slate-800">
+              <table className="w-full text-left text-sm text-slate-300 min-w-[950px]">
+                <thead className="bg-slate-900/80 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="px-6 py-4">Employee</th>
+                    <th className="px-6 py-4">Employee Code</th>
+                    <th className="px-6 py-4">Department</th>
+                    <th className="px-6 py-4">Team</th>
+                    <th className="px-6 py-4">Role</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right min-w-[340px] whitespace-nowrap">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                        {searchQuery ? `No members found matching "${searchQuery}"` : 'No active members found.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u: any) => (
+                      <tr
+                        key={u.id}
+                        onClick={() => navigate(`/employees/${u.id}/360`)}
+                        className="hover:bg-slate-800/60 cursor-pointer transition-colors group"
+                        title="Click to view 360° Profile & Live Telemetry"
+                      >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-indigo-400 font-bold text-sm">
@@ -479,9 +522,9 @@ export const PeoplePage: React.FC = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            setSelectedUser360(u);
-                            setActive360Tab('overview');
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/employees/${u.id}/360`);
                           }}
                           className="px-3 py-1.5 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 text-xs font-bold transition-colors shrink-0"
                         >
@@ -490,12 +533,13 @@ export const PeoplePage: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
-        )
-      )}
+        )}
+      </div>
+    )}
 
       {/* Invitations Table */}
       {activeTab === 'invitations' && (

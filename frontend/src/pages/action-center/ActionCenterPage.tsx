@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { actionCenterApi, leaveApi, taskApi } from '../../api/services';
 import { ActionItem } from '../../types';
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react';
 
 export const ActionCenterPage: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<ActionItem | null>(null);
@@ -151,7 +153,13 @@ export const ActionCenterPage: React.FC = () => {
 
                 <div className="space-y-1">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-base font-bold text-white">{item.requesterName}</span>
+                    <span
+                      onClick={() => (item as any).requesterId && navigate(`/employees/${(item as any).requesterId}/360`)}
+                      className="text-base font-bold text-white hover:text-indigo-400 cursor-pointer transition-colors"
+                      title="Click to view 360° Profile"
+                    >
+                      {item.requesterName}
+                    </span>
                     <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-indigo-400 font-mono border border-slate-700">
                       {item.requesterEmployeeCode}
                     </span>
@@ -160,7 +168,20 @@ export const ActionCenterPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="text-sm font-semibold text-slate-200 mt-1">{item.title}</div>
+                  <div
+                    onClick={() => {
+                      if (item.type === 'TASK_REVIEW' && item.entityId) {
+                        navigate(`/tasks?taskId=${item.entityId}`);
+                      } else if (item.type === 'LEAVE_REQUEST') {
+                        navigate('/leave');
+                      }
+                    }}
+                    className="text-sm font-semibold text-slate-200 mt-1 hover:text-indigo-300 cursor-pointer transition-colors flex items-center gap-1.5"
+                    title="Click to open related item"
+                  >
+                    <span>{item.title}</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                  </div>
                   {item.description && (
                     <div className="text-xs text-slate-400 italic">"{item.description}"</div>
                   )}

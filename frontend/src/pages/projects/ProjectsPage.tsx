@@ -13,9 +13,11 @@ import {
   AlertTriangle,
   Flame,
   Shield,
+  Search,
 } from 'lucide-react';
 
 export const ProjectsPage: React.FC = () => {
+  const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -68,6 +70,18 @@ export const ProjectsPage: React.FC = () => {
   const depts = deptsData?.data || [];
   const teams = teamsData?.data || [];
 
+  const filteredProjects = projects.filter((p: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (p.name && p.name.toLowerCase().includes(q)) ||
+      (p.description && p.description.toLowerCase().includes(q)) ||
+      (p.priority && p.priority.toLowerCase().includes(q)) ||
+      (p.health && p.health.toLowerCase().includes(q)) ||
+      (p.status && p.status.toLowerCase().includes(q))
+    );
+  });
+
   const healthBadges = {
     ON_TRACK: { label: 'On Track', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
     AT_RISK: { label: 'At Risk', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
@@ -100,17 +114,38 @@ export const ProjectsPage: React.FC = () => {
       </div>
 
       {/* Projects Grid */}
+      {/* Search Input Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search projects by name, description, priority..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        <div className="text-xs text-slate-400 font-medium">
+          Showing <span className="font-bold text-white">{filteredProjects.length}</span> of {projects.length} projects
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="text-center py-20 text-slate-500 text-sm">Loading projects...</div>
-      ) : projects.length === 0 ? (
+      ) : filteredProjects.length === 0 ? (
         <div className="glass-panel p-12 text-center rounded-3xl">
           <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-white font-display">No Projects Yet</h3>
-          <p className="text-sm text-slate-400 mt-1">Create your first organization project to get started.</p>
+          <h3 className="text-lg font-bold text-white font-display">
+            {searchQuery ? 'No Matching Projects' : 'No Projects Yet'}
+          </h3>
+          <p className="text-sm text-slate-400 mt-1">
+            {searchQuery ? `No projects match "${searchQuery}".` : 'Create your first organization project to get started.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => {
+          {filteredProjects.map((project) => {
             const health = healthBadges[project.health] || healthBadges.ON_TRACK;
             return (
               <Link

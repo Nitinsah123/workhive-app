@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi } from '../../api/services';
 import { Task } from '../../types';
@@ -25,9 +26,12 @@ import {
   Edit2,
   Trash2,
   Save,
+  Search,
 } from 'lucide-react';
 
 export const TasksPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'LIST' | 'KANBAN'>('KANBAN');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -243,6 +247,37 @@ export const TasksPage: React.FC = () => {
   const subtasks = subtasksData?.data || [];
   const comments = commentsData?.data?.content || [];
 
+  // Deep-link / auto-open task detail via ?taskId=...
+  const taskIdParam = searchParams.get('taskId');
+  useEffect(() => {
+    if (taskIdParam && tasks.length > 0) {
+      const found = tasks.find((t: any) => t.id === taskIdParam);
+      if (found) {
+        setActiveTask(found);
+        setDetailModalOpen(true);
+      } else {
+        taskApi.getById(taskIdParam).then((res) => {
+          if (res.data) {
+            setActiveTask(res.data);
+            setDetailModalOpen(true);
+          }
+        }).catch((err) => console.error('Failed to load deep-linked task', err));
+      }
+    }
+  }, [taskIdParam, tasks]);
+
+  // Search filter
+  const filteredTasks = tasks.filter((t: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (t.title && t.title.toLowerCase().includes(q)) ||
+      (t.description && t.description.toLowerCase().includes(q)) ||
+      (t.priority && t.priority.toLowerCase().includes(q)) ||
+      (t.status && t.status.toLowerCase().includes(q))
+    );
+  });
+
   return (
     <div className="space-y-8">
       {/* Header with View Toggle & Create */}
@@ -292,11 +327,28 @@ export const TasksPage: React.FC = () => {
       </div>
 
       {/* Main Content Area: Kanban or List View */}
+      {/* Search and Filter Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search tasks by title, priority, status..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        <div className="text-xs text-slate-400 font-medium">
+          Showing <span className="font-bold text-white">{filteredTasks.length}</span> of {tasks.length} tasks
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="text-center py-20 text-slate-500 text-sm">Loading tasks...</div>
       ) : viewMode === 'KANBAN' ? (
         <KanbanBoard
-          tasks={tasks}
+          tasks={filteredTasks}
           onTaskClick={(task) => {
             setActiveTask(task);
             setDetailModalOpen(true);
@@ -319,14 +371,14 @@ export const TasksPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {tasks.length === 0 ? (
+              {filteredTasks.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
-                    No tasks found. Create one above!
+                    {searchQuery ? 'No tasks match your search filter.' : 'No tasks found. Create one above!'}
                   </td>
                 </tr>
               ) : (
-                tasks.map((task) => (
+                filteredTasks.map((task) => (
                   <tr
                     key={task.id}
                     onClick={() => {
@@ -400,6 +452,11 @@ export const TasksPage: React.FC = () => {
         onClose={() => {
           setDetailModalOpen(false);
           setIsEditingTask(false);
+          if (searchParams.has('taskId')) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('taskId');
+            setSearchParams(nextParams, { replace: true });
+          }
         }}
         title={activeTask?.title || 'Task Details'}
         maxWidth="max-w-3xl"

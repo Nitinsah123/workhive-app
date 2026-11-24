@@ -380,7 +380,9 @@ export const UnitLiveRosterPage: React.FC<UnitLiveRosterPageProps> = ({ unitType
           {filteredMembers.map((member) => (
             <div
               key={member.userId}
-              className="group glass-panel rounded-3xl border border-slate-800/90 bg-[#0E1322] hover:border-indigo-500/40 hover:bg-[#11172A] transition-all duration-300 p-5 flex flex-col justify-between shadow-lg relative overflow-hidden"
+              onClick={() => navigate(`/employees/${member.userId}/360`)}
+              className="group glass-panel rounded-3xl border border-slate-800/90 bg-[#0E1322] hover:border-indigo-500/40 hover:bg-[#11172A] cursor-pointer transition-all duration-300 p-5 flex flex-col justify-between shadow-lg relative overflow-hidden"
+              title="Click to view 360° Profile"
             >
               {/* Subtle accent border top */}
               <div

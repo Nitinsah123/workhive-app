@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { archiveApi } from '../../api/services';
 import { Modal } from '../../components/common/Modal';
@@ -31,8 +32,10 @@ interface ArchivedItem {
 }
 
 export const ArchivePage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [previewItem, setPreviewItem] = useState<ArchivedItem | null>(null);
 
   // Confirmation Modals State
   const [itemToRestore, setItemToRestore] = useState<ArchivedItem | null>(null);
@@ -89,6 +92,17 @@ export const ArchivePage: React.FC = () => {
   });
 
   const items: ArchivedItem[] = data?.items || [];
+
+  // Deep-link / auto-open archived item via ?archiveId=...
+  const archiveIdParam = searchParams.get('archiveId');
+  useEffect(() => {
+    if (archiveIdParam && items.length > 0) {
+      const found = items.find((it: any) => it.id === archiveIdParam);
+      if (found) {
+        setPreviewItem(found);
+      }
+    }
+  }, [archiveIdParam, items]);
 
   const filteredItems = items.filter((item) => {
     if (!searchQuery.trim()) return true;
@@ -235,7 +249,9 @@ export const ArchivePage: React.FC = () => {
           {filteredItems.map((item) => (
             <div
               key={`${item.type}-${item.id}`}
-              className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800/80 hover:border-slate-700 transition-all flex flex-col justify-between group backdrop-blur-sm"
+              onClick={() => setPreviewItem(item)}
+              className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800/80 hover:border-indigo-500/50 hover:bg-slate-800/50 cursor-pointer transition-all flex flex-col justify-between group backdrop-blur-sm"
+              title="Click to view archived record details & actions"
             >
               <div className="space-y-3">
                 {/* Header: Type Badge & Status */}
@@ -293,7 +309,8 @@ export const ArchivePage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   {/* Restore Button */}
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setActionError(null);
                       setItemToRestore(item);
                     }}
@@ -306,7 +323,8 @@ export const ArchivePage: React.FC = () => {
 
                   {/* Permanent Delete Button */}
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setActionError(null);
                       setItemToDelete(item);
                     }}
@@ -423,6 +441,84 @@ export const ArchivePage: React.FC = () => {
                   {permanentDeleteMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
                 </span>
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Archive Item Details / Preview Modal */}
+      {previewItem && (
+        <Modal
+          isOpen={!!previewItem}
+          onClose={() => {
+            setPreviewItem(null);
+            if (searchParams.has('archiveId')) {
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete('archiveId');
+              setSearchParams(nextParams, { replace: true });
+            }
+          }}
+          title={`Archived ${previewItem.type}: ${previewItem.title}`}
+        >
+          <div className="space-y-6">
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${getTypeBadgeClass(previewItem.type)}`}>
+                  {getTypeIcon(previewItem.type)}
+                  <span>{previewItem.type}</span>
+                </span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  ARCHIVED
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-white font-display">{previewItem.title}</h3>
+              <p className="text-xs text-slate-300">{previewItem.description || 'No description provided.'}</p>
+            </div>
+
+            {previewItem.metadata && Object.keys(previewItem.metadata).length > 0 && (
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Archived Record Metadata</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {Object.entries(previewItem.metadata).map(([k, v]) => (
+                    <div key={k} className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                      <span className="text-slate-500 block capitalize">{k}</span>
+                      <span className="font-semibold text-slate-200">{String(v || '—')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+              <span className="text-slate-500 font-mono">
+                Archived: {previewItem.archivedAt ? new Date(previewItem.archivedAt).toLocaleString() : 'Preserved'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = previewItem;
+                    setPreviewItem(null);
+                    setItemToRestore(target);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Restore</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = previewItem;
+                    setPreviewItem(null);
+                    setItemToDelete(target);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
             </div>
           </div>
         </Modal>

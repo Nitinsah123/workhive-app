@@ -16,10 +16,12 @@ import {
   Save,
   Shield,
   Layers,
+  Search,
 } from 'lucide-react';
 
 export const TeamsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -151,7 +153,7 @@ export const TeamsPage: React.FC = () => {
     });
   };
 
-  const teams = teamsData?.data || [];
+  const allTeams = teamsData?.data || [];
   const depts = deptsData?.data || [];
   const users = usersData?.data || [];
 
@@ -170,6 +172,21 @@ export const TeamsPage: React.FC = () => {
   const getMemberCount = (teamId: string) => {
     return users.filter((u: any) => u.teamId === teamId).length;
   };
+
+  const filteredTeams = allTeams.filter((team: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const dept = getDeptName(team.departmentId)?.toLowerCase() || '';
+    const lead = getUserName(team.leadId)?.toLowerCase() || '';
+    return (
+      (team.name && team.name.toLowerCase().includes(q)) ||
+      (team.description && team.description.toLowerCase().includes(q)) ||
+      dept.includes(q) ||
+      lead.includes(q)
+    );
+  });
+
+  const teams = filteredTeams;
 
   return (
     <div className="space-y-8">
@@ -218,13 +235,34 @@ export const TeamsPage: React.FC = () => {
         </button>
       </div>
 
+      {/* Search Input Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search teams by name, description, lead, department..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        <div className="text-xs text-slate-400 font-medium">
+          Showing <span className="font-bold text-white">{teams.length}</span> of {allTeams.length} teams
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="text-center py-20 text-slate-500 text-sm">Loading teams...</div>
       ) : teams.length === 0 ? (
         <div className="glass-panel p-12 text-center rounded-3xl">
           <Briefcase className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-white font-display">No Teams Found</h3>
-          <p className="text-sm text-slate-400 mt-1">Form squads and assign leads.</p>
+          <h3 className="text-lg font-bold text-white font-display">
+            {searchQuery ? 'No Matching Teams' : 'No Teams Found'}
+          </h3>
+          <p className="text-sm text-slate-400 mt-1">
+            {searchQuery ? `No teams match "${searchQuery}".` : 'Form squads and assign leads.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

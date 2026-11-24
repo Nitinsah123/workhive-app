@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { attendanceApi, timeTrackingApi, taskApi } from '../../api/services';
 import { Modal } from '../../components/common/Modal';
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 
 export const AttendancePage: React.FC = () => {
+  const navigate = useNavigate();
   const [logTimeModal, setLogTimeModal] = useState(false);
   const [taskId, setTaskId] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('');
@@ -202,9 +204,14 @@ export const AttendancePage: React.FC = () => {
               <div className="text-center py-8 text-slate-500 text-sm">No time entries logged yet</div>
             ) : (
               timeEntries.map((te) => (
-                <div key={te.id} className="py-3 flex items-center justify-between">
+                <div
+                  key={te.id}
+                  onClick={() => te.taskId && navigate(`/tasks?taskId=${te.taskId}`)}
+                  className={`py-3 flex items-center justify-between ${te.taskId ? 'cursor-pointer hover:bg-slate-800/50 px-2.5 rounded-xl transition-colors group' : ''}`}
+                  title={te.taskId ? 'Click to open task in Kanban' : undefined}
+                >
                   <div className="space-y-0.5">
-                    <div className="text-sm font-bold text-white">
+                    <div className={`text-sm font-bold text-white ${te.taskId ? 'group-hover:text-indigo-300' : ''}`}>
                       {te.description || 'Task work log'}
                     </div>
                     <div className="text-xs text-slate-500">

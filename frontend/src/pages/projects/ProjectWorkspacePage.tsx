@@ -329,9 +329,14 @@ export const ProjectWorkspacePage: React.FC = () => {
               ) : (
                 <div className="space-y-2">
                   {tasks.slice(0, 4).map((t) => (
-                    <div key={t.id} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-200">{t.title}</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400">{t.status}</span>
+                    <div
+                      key={t.id}
+                      onClick={() => navigate(`/tasks?taskId=${t.id}`)}
+                      className="p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/60 cursor-pointer transition-all flex items-center justify-between group"
+                      title="Click to open task in Kanban"
+                    >
+                      <span className="text-sm font-semibold text-slate-200 group-hover:text-indigo-300 transition-colors">{t.title}</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 group-hover:bg-indigo-500/10 group-hover:text-indigo-400 transition-colors">{t.status}</span>
                     </div>
                   ))}
                 </div>
@@ -389,10 +394,12 @@ export const ProjectWorkspacePage: React.FC = () => {
               {tasks.map((task) => (
                 <div
                   key={task.id}
-                  className="glass-panel p-5 rounded-2xl border border-slate-800 flex items-center justify-between"
+                  onClick={() => navigate(`/tasks?taskId=${task.id}`)}
+                  className="glass-panel p-5 rounded-2xl border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/40 cursor-pointer transition-all flex items-center justify-between group"
+                  title="Click to view full task workflow and details"
                 >
                   <div className="space-y-1">
-                    <div className="text-sm font-bold text-white">{task.title}</div>
+                    <div className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">{task.title}</div>
                     <div className="text-xs text-slate-400">{task.description}</div>
                   </div>
                   <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-indigo-400 font-semibold border border-slate-700">
@@ -419,17 +426,27 @@ export const ProjectWorkspacePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {members.map((m: any) => (
-              <div key={m.id} className="glass-panel p-4 rounded-2xl flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-indigo-400 font-bold text-sm">
-                  {m.role?.charAt(0) || 'M'}
+            {members.map((m: any) => {
+              const memberUserId = m.userId || m.id;
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => memberUserId && navigate(`/employees/${memberUserId}/360`)}
+                  className="glass-panel p-4 rounded-2xl flex items-center gap-3 hover:border-indigo-500/50 hover:bg-slate-800/40 cursor-pointer transition-all group"
+                  title="Click to view 360° Profile"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-indigo-400 font-bold text-sm group-hover:scale-105 transition-transform">
+                    {m.user?.fullName?.charAt(0) || m.role?.charAt(0) || 'M'}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
+                      {m.user?.fullName || 'Project Member'}
+                    </div>
+                    <div className="text-xs text-indigo-400 font-mono">{m.role}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-white">Member</div>
-                  <div className="text-xs text-indigo-400 font-mono">{m.role}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

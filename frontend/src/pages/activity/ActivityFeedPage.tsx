@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, userApi, exportApi } from '../../api/services';
 import { API_BASE_URL } from '../../api/client';
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 
 export const ActivityFeedPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user: currentUser, tenant } = useAuthStore();
   const isAdmin = currentUser?.role === 'TENANT_ADMIN';
   const isManager = currentUser?.role === 'MANAGER';
@@ -336,9 +338,24 @@ export const ActivityFeedPage: React.FC = () => {
                       <Icon className="w-3.5 h-3.5" />
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex-1 space-y-1">
+                    <div
+                      onClick={() => {
+                        const act = item as any;
+                        if (act.entityType === 'TASK' && act.entityId) {
+                          navigate(`/tasks?taskId=${act.entityId}`);
+                        } else if (act.entityType === 'PROJECT' && act.entityId) {
+                          navigate(`/projects/${act.entityId}`);
+                        } else if (act.entityType === 'DOCUMENT' && act.entityId) {
+                          navigate(`/documents?docId=${act.entityId}`);
+                        } else if (act.userId) {
+                          navigate(`/employees/${act.userId}/360`);
+                        }
+                      }}
+                      className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-indigo-500/40 hover:bg-slate-800/40 cursor-pointer transition-all flex-1 space-y-1 group"
+                      title="Click to view related profile or workspace item"
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-white">{item.title}</span>
+                        <span className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">{item.title}</span>
                         <span className="text-xs text-slate-500 font-mono shrink-0">
                           {new Date(item.createdAt).toLocaleString()}
                         </span>

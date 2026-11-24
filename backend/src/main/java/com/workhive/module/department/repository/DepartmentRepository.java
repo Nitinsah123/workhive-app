@@ -4,6 +4,8 @@ import com.workhive.module.department.entity.Department;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
@@ -18,4 +20,8 @@ public interface DepartmentRepository extends JpaRepository<Department, UUID> {
     Optional<Department> findByIdAndTenantId(UUID id, UUID tenantId);
     boolean existsByTenantIdAndName(UUID tenantId, String name);
     long countByTenantId(UUID tenantId);
+
+    @Query("SELECT d FROM Department d WHERE d.tenantId = :tenantId AND (d.status IS NULL OR d.status <> 'ARCHIVED') " +
+           "AND (LOWER(d.name) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(d.description) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<Department> searchByTenant(@Param("tenantId") UUID tenantId, @Param("q") String query, Pageable pageable);
 }

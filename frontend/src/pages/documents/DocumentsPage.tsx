@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentApi } from '../../api/services';
 import api from '../../api/client';
@@ -16,9 +17,12 @@ import {
   AlertCircle,
   FileCode,
   Image as ImageIcon,
+  Search,
 } from 'lucide-react';
 
 export const DocumentsPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState('');
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
@@ -90,7 +94,31 @@ export const DocumentsPage: React.FC = () => {
     }
   };
 
-  const docs = docsData?.data?.content || [];
+  const allDocs = docsData?.data?.content || [];
+
+  // Deep-link / auto-open document via ?docId=...
+  const docIdParam = searchParams.get('docId');
+  useEffect(() => {
+    if (docIdParam && allDocs.length > 0) {
+      const found = allDocs.find((d: any) => d.id === docIdParam);
+      if (found) {
+        setPreviewDoc(found);
+        setPreviewModalOpen(true);
+      }
+    }
+  }, [docIdParam, allDocs]);
+
+  // Search filtered docs
+  const docs = allDocs.filter((d: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (d.name && d.name.toLowerCase().includes(q)) ||
+      (d.description && d.description.toLowerCase().includes(q)) ||
+      (d.contentType && d.contentType.toLowerCase().includes(q)) ||
+      (d.entityType && d.entityType.toLowerCase().includes(q))
+    );
+  });
 
   const getFileIcon = (contentType?: string) => {
     if (contentType?.includes('image')) return ImageIcon;
@@ -122,13 +150,34 @@ export const DocumentsPage: React.FC = () => {
       </div>
 
       {/* Document Grid */}
+      {/* Search Input Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search documents by name, description, file type..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        <div className="text-xs text-slate-400 font-medium">
+          Showing <span className="font-bold text-white">{docs.length}</span> of {allDocs.length} documents
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="text-center py-20 text-slate-500 text-sm">Loading documents...</div>
       ) : docs.length === 0 ? (
         <div className="glass-panel p-12 text-center rounded-3xl border border-slate-800">
           <FileText className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-white font-display">No Documents Stored</h3>
-          <p className="text-sm text-slate-400 mt-1">Upload organization or project files to get started.</p>
+          <h3 className="text-lg font-bold text-white font-display">
+            {searchQuery ? 'No Matching Documents' : 'No Documents Stored'}
+          </h3>
+          <p className="text-sm text-slate-400 mt-1">
+            {searchQuery ? `No documents match "${searchQuery}".` : 'Upload organization or project files to get started.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -137,11 +186,16 @@ export const DocumentsPage: React.FC = () => {
             return (
               <div
                 key={doc.id}
-                className="glass-panel glass-card-hover p-6 rounded-3xl border border-slate-800 flex flex-col justify-between"
+                onClick={() => {
+                  setPreviewDoc(doc);
+                  setPreviewModalOpen(true);
+                }}
+                className="glass-panel glass-card-hover p-6 rounded-3xl border border-slate-800 hover:border-indigo-500/40 cursor-pointer flex flex-col justify-between group transition-all"
+                title="Click to view document details & preview"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-105 transition-transform">
                       <Icon className="w-5 h-5" />
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
@@ -149,7 +203,7 @@ export const DocumentsPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-white font-display truncate">{doc.name}</h3>
+                  <h3 className="text-base font-bold text-white font-display truncate group-hover:text-indigo-300 transition-colors">{doc.name}</h3>
                   <p className="text-xs text-slate-400 line-clamp-2">
                     {doc.description || 'No description provided.'}
                   </p>
@@ -160,7 +214,10 @@ export const DocumentsPage: React.FC = () => {
 
                 <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between">
                   <button
-                    onClick={() => handleDownload(doc.id, doc.originalName || doc.name)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload(doc.id, doc.originalName || doc.name);
+                    }}
                     disabled={downloadingId === doc.id}
                     className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   >
@@ -169,7 +226,8 @@ export const DocumentsPage: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (window.confirm('Delete this document from storage?')) {
                         deleteMutation.mutate(doc.id);
                       }
@@ -265,6 +323,78 @@ export const DocumentsPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Document Detail / Preview Modal */}
+      <Modal
+        isOpen={previewModalOpen}
+        onClose={() => {
+          setPreviewModalOpen(false);
+          setPreviewDoc(null);
+          if (searchParams.has('docId')) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('docId');
+            setSearchParams(nextParams, { replace: true });
+          }
+        }}
+        title={previewDoc?.name || 'Document Details'}
+      >
+        {previewDoc && (
+          <div className="space-y-6">
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold">
+                  {previewDoc.entityType || 'ORGANIZATION'}
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  {previewDoc.fileSize ? `${Math.round(previewDoc.fileSize / 1024)} KB` : 'Unknown size'}
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-white font-display">{previewDoc.name}</h3>
+              <p className="text-xs text-slate-300">{previewDoc.description || 'No description provided.'}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-500 block">Content Type</span>
+                <span className="font-mono text-slate-200">{previewDoc.contentType || 'binary'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-500 block">Version</span>
+                <span className="font-mono text-slate-200">v{previewDoc.version || 1}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-500 block">Uploaded Date</span>
+                <span className="font-mono text-slate-200">
+                  {previewDoc.createdAt ? new Date(previewDoc.createdAt).toLocaleString() : 'Recent'}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-500 block">Document ID</span>
+                <span className="font-mono text-slate-400">{previewDoc.id?.slice(0, 8)}...</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPreviewModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload(previewDoc.id, previewDoc.originalName || previewDoc.name)}
+                disabled={downloadingId === previewDoc.id}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/25"
+              >
+                <Download className="w-4 h-4" />
+                <span>{downloadingId === previewDoc.id ? 'Downloading...' : 'Download File'}</span>
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

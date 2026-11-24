@@ -14,10 +14,12 @@ import {
   AlertCircle,
   Archive,
   Save,
+  Search,
 } from 'lucide-react';
 
 export const DepartmentsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -131,8 +133,17 @@ export const DepartmentsPage: React.FC = () => {
     });
   };
 
-  const departments = deptsData?.data || [];
+  const allDepartments = deptsData?.data || [];
   const users = usersData?.data || [];
+
+  const departments = allDepartments.filter((d: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (d.name && d.name.toLowerCase().includes(q)) ||
+      (d.description && d.description.toLowerCase().includes(q))
+    );
+  });
 
   const getUserName = (id?: string) => {
     if (!id) return null;
@@ -163,13 +174,34 @@ export const DepartmentsPage: React.FC = () => {
         </button>
       </div>
 
+      {/* Search Input Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search departments by name or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        <div className="text-xs text-slate-400 font-medium">
+          Showing <span className="font-bold text-white">{departments.length}</span> of {allDepartments.length} departments
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="text-center py-20 text-slate-500 text-sm">Loading departments...</div>
       ) : departments.length === 0 ? (
         <div className="glass-panel p-12 text-center rounded-3xl">
           <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-white font-display">No Departments Created</h3>
-          <p className="text-sm text-slate-400 mt-1">Organize your organization by adding departments.</p>
+          <h3 className="text-lg font-bold text-white font-display">
+            {searchQuery ? 'No Matching Departments' : 'No Departments Created'}
+          </h3>
+          <p className="text-sm text-slate-400 mt-1">
+            {searchQuery ? `No departments match "${searchQuery}".` : 'Organize your organization by adding departments.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
