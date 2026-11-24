@@ -17,6 +17,8 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
     Optional<Task> findByIdAndTenantId(UUID id, UUID tenantId);
     Page<Task> findByTenantIdAndProjectId(UUID tenantId, UUID projectId, Pageable pageable);
     Page<Task> findByTenantIdAndAssigneeId(UUID tenantId, UUID assigneeId, Pageable pageable);
+    List<Task> findByTenantIdAndAssigneeId(UUID tenantId, UUID assigneeId);
+    long countByTenantIdAndAssigneeId(UUID tenantId, UUID assigneeId);
     List<Task> findByTenantIdAndProjectIdAndStatus(UUID tenantId, UUID projectId, String status);
     List<Task> findByTenantIdAndStatus(UUID tenantId, String status);
     long countByTenantIdAndProjectId(UUID tenantId, UUID projectId);

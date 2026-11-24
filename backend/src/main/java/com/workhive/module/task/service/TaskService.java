@@ -41,6 +41,9 @@ public class TaskService {
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.workhive.module.activity.service.ActivityStreamService activityStreamService;
+
     public TaskService(TaskRepository taskRepository,
                        SubtaskRepository subtaskRepository,
                        TaskCommentRepository taskCommentRepository,
@@ -147,6 +150,13 @@ public class TaskService {
         workActivityService.recordActivity(tenantId, userId, task.getProjectId(), task.getId(), "WORKHIVE", "TASK_CREATED",
                 "Created task: " + task.getTitle(), task.getDescription(), null, null);
         auditService.log(tenantId, userId, "TASK_CREATED", "TASK", task.getId(), null, null);
+
+        if (activityStreamService != null && task.getAssigneeId() != null) {
+            try {
+                activityStreamService.publishActivity(tenantId, task.getAssigneeId(), null, null,
+                        "TASK_ASSIGNED", "Assigned task: " + task.getTitle(), "{\"taskId\":\"" + task.getId() + "\"}");
+            } catch (Exception ignored) {}
+        }
 
         return task;
     }
@@ -300,6 +310,15 @@ public class TaskService {
         } else if ("COMPLETED".equals(newStatus)) {
             workActivityService.recordActivity(tenantId, userId, task.getProjectId(), task.getId(), "WORKHIVE", "TASK_COMPLETED",
                     "Completed task: " + task.getTitle(), null, null, null);
+        }
+
+        if (activityStreamService != null) {
+            try {
+                String eventType = "COMPLETED".equals(newStatus) ? "TASK_COMPLETED" : "TASK_UPDATED";
+                UUID targetUser = task.getAssigneeId() != null ? task.getAssigneeId() : userId;
+                activityStreamService.publishActivity(tenantId, targetUser, null, null,
+                        eventType, "Task " + newStatus.toLowerCase() + ": " + task.getTitle(), "{\"taskId\":\"" + task.getId() + "\",\"status\":\"" + newStatus + "\"}");
+            } catch (Exception ignored) {}
         }
 
         // Trigger project progress recalculation

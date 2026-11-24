@@ -54,6 +54,9 @@ public class IntegrationService {
     @Value("${integrations.github.webhook-secret:}")
     private String githubWebhookSecret = "";
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.workhive.module.activity.service.ActivityStreamService activityStreamService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public IntegrationService(IntegrationRepository integrationRepository,
                               IntegrationMappingRepository integrationMappingRepository,
@@ -1556,6 +1559,38 @@ public class IntegrationService {
                     messagingTemplate.convertAndSend("/topic/tenant." + tenantId + ".activities", recordedActivity);
                 } catch (Exception wsEx) {
                     log.warn("Failed to broadcast WebSocket activity: {}", wsEx.getMessage());
+                }
+            }
+
+            // Stream activity event to active SSE subscribers and store in employee_activity_events
+            if (activityStreamService != null) {
+                try {
+                    UUID deptId = null;
+                    UUID teamId = null;
+                    if (userRepository != null && userId != null) {
+                        var uOpt = userRepository.findById(userId);
+                        if (uOpt.isPresent()) {
+                            deptId = uOpt.get().getDepartmentId();
+                            teamId = uOpt.get().getTeamId();
+                        }
+                    }
+                    String branch = "main";
+                    if (root.has("ref")) {
+                        branch = root.get("ref").asText().replace("refs/heads/", "");
+                    }
+                    Map<String, Object> meta = new HashMap<>();
+                    meta.put("repository", repoName != null ? repoName : "repository");
+                    meta.put("branch", branch);
+                    meta.put("commitSha", externalId);
+                    meta.put("externalUrl", externalUrl);
+                    String metaJson = objectMapper.writeValueAsString(meta);
+
+                    String eventTypeVal = "push".equalsIgnoreCase(effectiveEvent) ? "GIT_PUSH" :
+                                         ("pull_request".equalsIgnoreCase(effectiveEvent) ? "GIT_PR" : "GIT_ACTIVITY");
+
+                    activityStreamService.publishActivity(tenantId, userId, deptId, teamId, eventTypeVal, title, metaJson);
+                } catch (Exception ex) {
+                    log.debug("ActivityStream broadcast note: {}", ex.getMessage());
                 }
             }
 

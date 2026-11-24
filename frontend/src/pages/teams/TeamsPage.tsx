@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi, departmentApi, userApi } from '../../api/services';
 import { Modal } from '../../components/common/Modal';
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 
 export const TeamsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -234,11 +236,13 @@ export const TeamsPage: React.FC = () => {
             return (
               <div
                 key={team.id}
-                className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4 flex flex-col justify-between"
+                onClick={() => navigate(`/teams/${team.id}/members`)}
+                className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-indigo-500/40 hover:bg-slate-800/40 transition-all duration-200 space-y-4 flex flex-col justify-between cursor-pointer group shadow-lg"
+                title="Click to view live team member roster & activity"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 w-fit rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <div className="p-3 w-fit rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-105 transition-transform">
                       <Briefcase className="w-6 h-6" />
                     </div>
                     <span
@@ -253,7 +257,14 @@ export const TeamsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <h3 className="text-xl font-bold text-white font-display">{team.name}</h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-white font-display group-hover:text-indigo-300 transition-colors">
+                        {team.name}
+                      </h3>
+                      <span className="text-[11px] font-bold text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                        Live Roster →
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-400 line-clamp-2 mt-1">
                       {team.description || 'No description provided.'}
                     </p>
@@ -286,7 +297,10 @@ export const TeamsPage: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleOpenEdit(team)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEdit(team);
+                      }}
                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-slate-700"
                     >
                       <Edit2 className="w-3 h-3 text-indigo-400" />
@@ -296,7 +310,8 @@ export const TeamsPage: React.FC = () => {
                     {team.status === 'ACTIVE' && (
                       <>
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setArchiveError(null);
                             setTeamToArchive(team);
                           }}
@@ -308,7 +323,8 @@ export const TeamsPage: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setDeleteError(null);
                             setTeamToDelete(team);
                           }}

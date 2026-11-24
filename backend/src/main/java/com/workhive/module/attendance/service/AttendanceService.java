@@ -23,6 +23,9 @@ public class AttendanceService {
     private final AttendanceRepository attendanceRepository;
     private final WorkActivityService workActivityService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.workhive.module.activity.service.ActivityStreamService activityStreamService;
+
     public AttendanceService(AttendanceRepository attendanceRepository, WorkActivityService workActivityService) {
         this.attendanceRepository = attendanceRepository;
         this.workActivityService = workActivityService;
@@ -53,6 +56,13 @@ public class AttendanceService {
 
         workActivityService.recordActivity(tenantId, userId, null, null, "WORKHIVE", "ATTENDANCE_CHECKIN",
                 "Checked in for work", null, null, null);
+
+        if (activityStreamService != null) {
+            try {
+                activityStreamService.publishActivity(tenantId, userId, null, null,
+                        "HEARTBEAT", "Attendance check-in logged", "{\"attendanceId\":\"" + attendance.getId() + "\"}");
+            } catch (Exception ignored) {}
+        }
 
         return attendance;
     }

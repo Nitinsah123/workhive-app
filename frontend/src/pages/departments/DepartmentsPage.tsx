@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { departmentApi, userApi } from '../../api/services';
 import { Modal } from '../../components/common/Modal';
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 export const DepartmentsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -174,11 +176,13 @@ export const DepartmentsPage: React.FC = () => {
           {departments.map((dept) => (
             <div
               key={dept.id}
-              className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4 flex flex-col justify-between"
+              onClick={() => navigate(`/departments/${dept.id}/members`)}
+              className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-indigo-500/40 hover:bg-slate-800/40 transition-all duration-200 space-y-4 flex flex-col justify-between cursor-pointer group shadow-lg"
+              title="Click to view live department member roster & activity"
             >
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="p-3 w-fit rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <div className="p-3 w-fit rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-105 transition-transform">
                     <Building2 className="w-6 h-6" />
                   </div>
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
@@ -190,7 +194,15 @@ export const DepartmentsPage: React.FC = () => {
                   </span>
                 </div>
 
-                <h3 className="text-xl font-bold text-white font-display">{dept.name}</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white font-display group-hover:text-indigo-300 transition-colors">
+                    {dept.name}
+                  </h3>
+                  <span className="text-[11px] font-bold text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                    Live Roster →
+                  </span>
+                </div>
+
                 <p className="text-xs text-slate-400 line-clamp-3">
                   {dept.description || 'No description provided.'}
                 </p>
@@ -209,7 +221,10 @@ export const DepartmentsPage: React.FC = () => {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleOpenEdit(dept)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEdit(dept);
+                    }}
                     className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-slate-700"
                   >
                     <Edit2 className="w-3 h-3 text-indigo-400" />
@@ -217,7 +232,8 @@ export const DepartmentsPage: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setArchiveError(null);
                       setDeptToArchive(dept);
                     }}
@@ -229,7 +245,8 @@ export const DepartmentsPage: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setDeleteError(null);
                       setDeptToDelete(dept);
                     }}

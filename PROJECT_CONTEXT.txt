@@ -1,0 +1,1770 @@
+==================================================
+PROJECT CONTEXT
+==================================================
+
+Generated: 2026-09-09
+Source: Full codebase analysis of c:\workhivenew
+
+==================================================
+1. PROJECT OVERVIEW
+==================================================
+
+* Project name: WorkHive
+* What problem the project solves: Provides a multi-tenant SaaS workspace platform for B2B organizations,
+  enabling teams to manage projects, tasks, attendance, leave, documents, announcements,
+  integrations (GitHub, Jira, GitLab, Slack), reporting, and real-time collaboration—all
+  within an isolated, tenant-scoped environment.
+* What the project currently does:
+  - Full multi-tenant workspace with organization (tenant) onboarding
+  - JWT-based authentication with access/refresh tokens
+  - User management with invitations, roles (TENANT_ADMIN, MANAGER, EMPLOYEE)
+  - Department and team hierarchy management
+  - Project management with milestones, members, progress tracking
+  - Task management with Kanban, subtasks, comments, history, review workflow
+  - Attendance check-in/check-out and time tracking
+  - Leave management with leave types, balances, apply/review workflow
+  - Document management with MinIO object storage
+  - Announcements (targeted by org/dept/team)
+  - Notifications (in-app, real-time via WebSocket/STOMP)
+  - Global search across users, projects, tasks, documents
+  - Reports (employee, project, organization) with PDF and CSV/XLSX export
+  - Integrations with GitHub (OAuth + webhooks), Jira, GitLab, Slack
+  - Gmail OAuth email connections for transactional email delivery
+  - Activity feed with heatmap
+  - Archive and restore (soft-delete) system
+  - Action center for pending approvals (leave, task reviews)
+  - Organization settings
+  - Audit logging with outbox events
+  - Full React + TypeScript frontend with 20+ pages
+* Main use case: Enterprise/B2B SaaS platform where organizations onboard their workspace,
+  invite employees, and collaboratively manage daily work.
+* Current status: Functionally complete MVP with both backend and frontend deployed.
+  Deployed on Render (frontend static site + backend Docker) and Railway.
+
+==================================================
+2. TECHNOLOGY STACK
+==================================================
+
+PROGRAMMING LANGUAGES:
+  - Java 21 (backend)
+  - TypeScript / JavaScript (frontend)
+  - SQL (PostgreSQL)
+
+FRAMEWORKS:
+  - Spring Boot 3.2.5 (backend)
+  - React 18.2.0 (frontend)
+  - Vite 5.1.6 (frontend build tool)
+
+LIBRARIES:
+  Backend:
+    - Spring Boot Starter Web
+    - Spring Boot Starter Data JPA (Hibernate)
+    - Spring Boot Starter Security
+    - Spring Boot Starter Validation (Jakarta Bean Validation)
+    - Spring Boot Starter WebSocket (STOMP/SockJS)
+    - Spring Boot Starter Data Redis
+    - Spring Boot Starter Mail
+    - Spring Boot Starter Actuator
+    - Flyway Core 10.10.0 (database migrations)
+    - JJWT 0.12.5 (JWT tokens: jjwt-api, jjwt-impl, jjwt-jackson)
+    - MinIO SDK 8.5.9 (object storage)
+    - Apache POI 5.2.5 (Excel export)
+    - OpenCSV 5.9 (CSV export)
+    - OpenPDF 1.3.40 (PDF export)
+    - Lombok (annotation processing)
+    - PostgreSQL JDBC driver
+    - H2 Database (dev profile in-memory)
+  Frontend:
+    - React Router DOM 6.22.3
+    - TanStack React Query 5.28.9
+    - Axios 1.6.8
+    - Zustand 4.5.2 (state management)
+    - Lucide React 0.363.0 (icons)
+    - date-fns 3.6.0
+    - STOMP.js 7.0.0 (WebSocket)
+    - SockJS Client 1.6.1
+    - TailwindCSS 3.4.3
+    - clsx 2.1.0
+    - tailwind-merge 2.2.2
+
+DATABASES:
+  - PostgreSQL 16 (production)
+  - H2 (dev profile, in-memory, PostgreSQL mode)
+  - Redis 7 (caching/sessions)
+
+APIS:
+  - REST API (Spring Boot, JSON over HTTP)
+  - WebSocket (STOMP over SockJS at /ws)
+  - Google OAuth 2.0 API (Gmail email connection)
+  - GitHub API (OAuth + REST + Webhooks)
+  - Jira REST API
+  - GitLab REST API
+  - Slack API
+
+LLM/MODEL COMPONENTS:
+  - NOT FOUND / UNKNOWN — No LLM, AI, vector search, RAG, or embeddings are used.
+
+BUILD TOOLS:
+  - Maven 3.x (backend: pom.xml)
+  - Vite (frontend build)
+  - Docker (multi-stage Dockerfiles for both frontend and backend)
+
+PACKAGE MANAGERS:
+  - Maven (backend)
+  - pnpm (frontend, with pnpm-lock.yaml)
+
+RUNTIME REQUIREMENTS:
+  - JDK/JRE 21 (Eclipse Temurin)
+  - Node.js 20+
+  - PostgreSQL 16
+  - Redis 7 (optional, degrades gracefully)
+  - MinIO (for document storage; optional if no document features needed)
+
+DEVELOPMENT TOOLS:
+  - Docker Compose (docker-compose.yml)
+  - MailHog (local email testing)
+  - Apache Maven (bundled in tools/apache-maven-3.9.6)
+
+==================================================
+3. PROJECT STRUCTURE
+==================================================
+
+c:\workhivenew\
+├── .env                           # Environment variables (secrets, OAuth, SMTP)
+├── .env.example                   # Template for .env
+├── .gitignore                     # Git ignore rules
+├── docker-compose.yml             # Docker Compose: Postgres, Redis, MinIO, MailHog, Backend, Frontend
+├── railway.toml                   # Railway deployment config
+├── render.yaml                    # Render deployment config
+├── test-e2e.ps1                   # End-to-end test script (PowerShell)
+├── test-invitation-mailhog.ps1    # Invitation email test script (PowerShell)
+├── WORKHIVE_COMPONENT_INVENTORY.txt # Existing component inventory doc
+├── data/
+│   └── storage/                   # Local data/storage volume (git-ignored)
+├── tools/
+│   └── apache-maven-3.9.6/        # Bundled Maven installation
+│
+├── backend/                       # Spring Boot Backend
+│   ├── Dockerfile                 # Multi-stage Docker build (JDK 21 builder → JRE 21 runtime)
+│   ├── pom.xml                    # Maven project descriptor
+│   ├── data/                      # Backend local data
+│   ├── target/                    # Maven build output (git-ignored)
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/workhive/
+│       │   │   ├── WorkHiveApplication.java       # Main entry point (@SpringBootApplication)
+│       │   │   ├── common/
+│       │   │   │   ├── controller/
+│       │   │   │   │   └── HealthController.java  # GET /api/health
+│       │   │   │   ├── exception/
+│       │   │   │   │   ├── GlobalExceptionHandler.java
+│       │   │   │   │   ├── BadRequestException.java
+│       │   │   │   │   ├── DuplicateResourceException.java
+│       │   │   │   │   ├── RateLimitException.java
+│       │   │   │   │   ├── ResourceNotFoundException.java
+│       │   │   │   │   └── TenantAccessDeniedException.java
+│       │   │   │   └── util/
+│       │   │   │       └── CryptoUtils.java       # AES encryption for integration tokens
+│       │   │   ├── config/
+│       │   │   │   ├── SecurityConfig.java        # Spring Security config, CORS, BCrypt
+│       │   │   │   ├── WebSocketConfig.java       # STOMP WebSocket config
+│       │   │   │   └── DatabaseUrlEnvironmentPostProcessor.java  # Cloud DB URL normalization
+│       │   │   ├── security/
+│       │   │   │   ├── JwtTokenProvider.java      # JWT generation/validation (HMAC-SHA)
+│       │   │   │   ├── JwtAuthenticationFilter.java # Bearer token extraction, tenant context
+│       │   │   │   ├── TenantContext.java          # ThreadLocal tenant/user/role context
+│       │   │   │   └── AuthUserDetails.java        # Record holding authenticated user details
+│       │   │   ├── event/
+│       │   │   │   ├── entity/OutboxEvent.java
+│       │   │   │   ├── repository/OutboxEventRepository.java
+│       │   │   │   └── service/OutboxPublisher.java
+│       │   │   └── module/                         # Feature modules (each follows controller/dto/entity/repository/service pattern)
+│       │   │       ├── actioncenter/               # Pending approval items
+│       │   │       ├── activity/                   # Work activity feed
+│       │   │       ├── announcement/               # Organization announcements
+│       │   │       ├── archive/                    # Soft-delete archive system
+│       │   │       ├── attendance/                 # Check-in/out + time tracking
+│       │   │       ├── audit/                      # Audit logging
+│       │   │       ├── auth/                       # Authentication (login, workspace creation, token refresh)
+│       │   │       ├── department/                 # Department CRUD
+│       │   │       ├── document/                   # Document upload/download (MinIO)
+│       │   │       ├── export/                     # CSV, XLSX, PDF exports
+│       │   │       ├── integration/                # GitHub, Jira, GitLab, Slack integrations
+│       │   │       ├── leave/                      # Leave types, balances, requests, review
+│       │   │       ├── notification/               # In-app notifications
+│       │   │       ├── project/                    # Projects, milestones, members
+│       │   │       ├── report/                     # Employee, project, org reports
+│       │   │       ├── search/                     # Global search (DB-based, not vector)
+│       │   │       ├── settings/                   # Organization settings
+│       │   │       ├── task/                       # Tasks, subtasks, comments, history, review
+│       │   │       ├── team/                       # Team CRUD
+│       │   │       ├── tenant/                     # Tenant entity/repository (no controller)
+│       │   │       └── user/                       # Users, invitations, email connections
+│       │   └── resources/
+│       │       ├── application.yml                 # Main Spring Boot config
+│       │       ├── application-dev.yml             # Dev profile (H2, no Flyway)
+│       │       ├── META-INF/
+│       │       │   ├── spring.factories            # Registers DatabaseUrlEnvironmentPostProcessor
+│       │       │   └── spring/                     # Spring auto-config metadata
+│       │       └── db/migration/
+│       │           ├── V1__core_schema.sql          # Core schema: tenants, users, permissions, invitations, etc.
+│       │           ├── V2__email_connections.sql     # Email connections table
+│       │           ├── V3__user_integrations.sql     # User integrations additions
+│       │           ├── V4__invitations_email_status.sql # Invitation email status tracking
+│       │           ├── V5__org_settings_and_task_submissions.sql # Org settings, task submissions
+│       │           └── V6__outbox_events_payload_to_text.sql    # Outbox events payload type change
+│       └── test/                                   # Test sources
+│
+└── frontend/                      # React + TypeScript Frontend
+    ├── Dockerfile                 # Multi-stage: Node 20 builder → Nginx Alpine
+    ├── index.html                 # HTML entry point
+    ├── nginx.conf                 # Nginx config template (SPA routing, gzip, caching)
+    ├── package.json               # Dependencies and scripts
+    ├── pnpm-lock.yaml             # Lock file
+    ├── postcss.config.js          # PostCSS config
+    ├── tailwind.config.js         # TailwindCSS config (brand colors, Inter/Outfit fonts)
+    ├── tsconfig.json              # TypeScript config (ES2020, bundler mode, @/ path alias)
+    ├── tsconfig.node.json         # Node-specific TS config
+    ├── vite.config.ts             # Vite config (proxy /api → 8080, /ws → 8080, port 3000)
+    ├── dist/                      # Build output (git-ignored)
+    ├── node_modules/              # Dependencies (git-ignored)
+    └── src/
+        ├── main.tsx               # React entry: QueryClientProvider → App
+        ├── App.tsx                # Router: public routes, protected routes, AppLayout
+        ├── index.css              # TailwindCSS base, glassmorphism utilities
+        ├── api/
+        │   ├── client.ts          # Axios instance, Bearer token interceptor, 401 refresh
+        │   └── services.ts        # All API service functions (authApi, userApi, projectApi, etc.)
+        ├── components/
+        │   ├── common/
+        │   │   ├── GlobalSearchModal.tsx
+        │   │   ├── Modal.tsx
+        │   │   └── StatCard.tsx
+        │   └── layout/
+        │       ├── AppLayout.tsx   # Sidebar + Header + Outlet
+        │       ├── Header.tsx      # Top navigation bar
+        │       └── Sidebar.tsx     # Side navigation
+        ├── pages/                  # 20+ page components
+        │   ├── action-center/ActionCenterPage.tsx
+        │   ├── activity/ActivityFeedPage.tsx
+        │   ├── announcements/AnnouncementsPage.tsx
+        │   ├── archive/ArchivePage.tsx
+        │   ├── attendance/AttendancePage.tsx
+        │   ├── auth/
+        │   │   ├── LoginPage.tsx
+        │   │   ├── CreateWorkspacePage.tsx
+        │   │   └── AcceptInvitationPage.tsx
+        │   ├── dashboard/DashboardPage.tsx
+        │   ├── departments/DepartmentsPage.tsx
+        │   ├── documents/DocumentsPage.tsx
+        │   ├── integrations/IntegrationsPage.tsx
+        │   ├── landing/LandingPage.tsx
+        │   ├── leave/LeavePage.tsx
+        │   ├── notifications/NotificationsPage.tsx
+        │   ├── people/PeoplePage.tsx
+        │   ├── profile/ProfilePage.tsx
+        │   ├── projects/
+        │   │   ├── ProjectsPage.tsx
+        │   │   └── ProjectWorkspacePage.tsx
+        │   ├── reports/ReportsPage.tsx
+        │   ├── settings/SettingsPage.tsx
+        │   ├── tasks/
+        │   │   ├── TasksPage.tsx
+        │   │   └── KanbanBoard.tsx
+        │   └── teams/TeamsPage.tsx
+        ├── store/
+        │   ├── authStore.ts       # Zustand auth state (tokens, user, tenant in localStorage)
+        │   └── uiStore.ts        # Zustand UI state (sidebar, search modal)
+        └── types/
+            └── index.ts          # TypeScript interfaces (User, Tenant, AuthResponse, Project, Task, etc.)
+
+==================================================
+4. SYSTEM ARCHITECTURE
+==================================================
+
+User (Browser)
+     ↓
+React Frontend (Vite dev / Nginx prod, port 3000/80)
+     ↓
+Axios HTTP Client (Bearer JWT in Authorization header)
+     ↓ REST API (JSON)
+Spring Boot Backend (port 8080)
+     ↓
+┌────────────────────────────────────────────────────────┐
+│  JwtAuthenticationFilter                                │
+│  → Extracts Bearer token                                │
+│  → Validates JWT (HMAC-SHA)                             │
+│  → Sets TenantContext (ThreadLocal: userId, tenantId, role) │
+│  → Sets Spring SecurityContext                          │
+└────────────────────────────────────────────────────────┘
+     ↓
+┌─────────────────────────────────┐
+│  @RestController endpoints       │
+│  → @PreAuthorize role checks     │
+│  → Input validation (@Valid)     │
+│  → Calls Service layer           │
+└─────────────────────────────────┘
+     ↓
+┌─────────────────────────────────┐
+│  Service Layer                   │
+│  → Business logic                │
+│  → TenantContext.requireTenantId() for tenant isolation │
+│  → Repository calls              │
+│  → Event publishing (OutboxPublisher) │
+│  → Notification creation         │
+│  → Activity logging              │
+└─────────────────────────────────┘
+     ↓
+┌─────────────────────────────────┐
+│  JPA Repositories                │
+│  → Tenant-scoped queries         │
+│  → PostgreSQL database           │
+│  → Flyway migrations             │
+└─────────────────────────────────┘
+     ↓                    ↓                    ↓
+PostgreSQL 16         Redis 7             MinIO (S3)
+(Primary DB)     (Cache/Sessions)    (Document Storage)
+
+REAL-TIME:
+  Frontend ←→ WebSocket (STOMP/SockJS at /ws) ←→ Backend SimpleBroker
+  Topics: /topic/*, /queue/*
+  User destinations: /user/*
+
+EXTERNAL INTEGRATIONS:
+  Backend → GitHub API (OAuth + REST + Webhooks)
+  Backend → Jira REST API
+  Backend → GitLab REST API
+  Backend → Slack API
+  Backend → Google OAuth 2.0 (Gmail)
+  Backend → SMTP (Gmail/Brevo for transactional emails)
+
+==================================================
+5. BACKEND
+==================================================
+
+BACKEND FRAMEWORK: Spring Boot 3.2.5
+
+ENTRY POINT: com.workhive.WorkHiveApplication (WorkHiveApplication.java)
+  - @SpringBootApplication
+  - @EnableAsync (async method support)
+  - @EnableScheduling (scheduled tasks)
+  - Loads .env file via custom loadDotEnvIfExists() method at startup
+  - Sets system properties from .env before Spring context loads
+
+SERVER STARTUP:
+  - Spring Boot auto-configuration
+  - Port: ${PORT:8080} (configurable via env)
+  - Flyway runs migrations on startup (production profile)
+  - Dev profile: H2 in-memory, ddl-auto=update, no Flyway
+
+CONTROLLERS/ROUTES (all under /api prefix):
+  - HealthController:      /api/health
+  - AuthController:        /api/auth/**
+  - UserController:        /api/users/**
+  - InvitationController:  /api/invitations/**
+  - EmailConnectionController: /api/email-connections/**
+  - ProjectController:     /api/projects/**
+  - TaskController:        /api/tasks/**
+  - TeamController:        /api/teams/**
+  - DepartmentController:  /api/departments/**
+  - AttendanceController:  /api/attendance/**
+  - TimeTrackingController: /api/time-entries/** (also /api/time/**)
+  - LeaveController:       /api/leaves/** (also /api/leave/**)
+  - DocumentController:    /api/documents/**
+  - AnnouncementController: /api/announcements/**
+  - NotificationController: /api/notifications/**
+  - SearchController:      /api/search
+  - ReportController:      /api/reports/**
+  - ExportController:      /api/exports/**
+  - IntegrationController: /api/integrations/**
+  - ArchiveController:     /api/archive/**
+  - ActionCenterController: /api/action-center/**
+  - SettingsController:    /api/settings
+  - WorkActivityController: /api/activities/**
+
+SERVICES: Each module has a corresponding service class in module/<name>/service/:
+  - AuthService, UserService, InvitationService, EmailConnectionService
+  - ProjectService, TaskService, TeamService, DepartmentService
+  - AttendanceService, TimeTrackingService, LeaveService
+  - DocumentService, AnnouncementService, NotificationService
+  - SearchService, ReportService, ExportService, PdfExportService
+  - IntegrationService, ArchiveService, ActionCenterService
+  - SettingsService, WorkActivityService, AuditService
+  - OutboxPublisher (event publishing)
+
+CORE CLASSES:
+  - TenantContext: ThreadLocal holder for tenantId, userId, role. Set from JWT by filter.
+  - JwtTokenProvider: Generates access/refresh tokens, validates, extracts claims.
+  - JwtAuthenticationFilter: OncePerRequestFilter that extracts Bearer token, sets security context.
+  - AuthUserDetails: Java record(userId, tenantId, email, role).
+  - GlobalExceptionHandler: @RestControllerAdvice with handlers for all exception types.
+  - CryptoUtils: AES encryption/decryption for integration access tokens.
+  - DatabaseUrlEnvironmentPostProcessor: Normalizes cloud DB URLs (Render/Railway/Heroku).
+
+DATA FLOW:
+  1. HTTP request arrives at Spring Boot
+  2. JwtAuthenticationFilter extracts Bearer token from Authorization header
+  3. JWT is validated and claims extracted (userId, tenantId, role, email)
+  4. TenantContext is set (ThreadLocal)
+  5. Spring Security context is set with authorities (ROLE_TENANT_ADMIN, etc.)
+  6. Request reaches @RestController
+  7. @PreAuthorize checks role if applicable
+  8. @Valid triggers bean validation on request body
+  9. Controller delegates to Service
+  10. Service uses TenantContext.requireTenantId() for tenant isolation
+  11. Service calls JPA Repository (all queries are tenant-scoped)
+  12. Response is serialized to JSON (Jackson, non-null properties, ISO dates)
+
+ERROR HANDLING (GlobalExceptionHandler):
+  - ResourceNotFoundException → 404 {error, message, timestamp}
+  - BadRequestException → 400
+  - DuplicateResourceException → 409
+  - DataIntegrityViolationException → 409
+  - TenantAccessDeniedException → 403
+  - AccessDeniedException → 403
+  - SecurityException → 401
+  - MethodArgumentNotValidException → 400 {error, message, fields: {field: error}}
+  - MaxUploadSizeExceededException → 413
+  - RateLimitException → 429
+  - Generic Exception → 500
+
+  Error response format:
+  {
+    "error": "ERROR_CODE",
+    "message": "Human-readable message",
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+
+  Validation error format:
+  {
+    "error": "VALIDATION_ERROR",
+    "message": "Validation failed",
+    "fields": {
+      "fieldName": "error message"
+    },
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+
+CONFIGURATION:
+  - application.yml: Main config (datasource, JPA, Flyway, Redis, Mail, JWT, MinIO, Brevo, Actuator, Logging)
+  - application-dev.yml: Dev profile (H2, no Flyway, H2 console enabled at /h2-console)
+  - Profiles: default (PostgreSQL), dev (H2)
+
+PORTS:
+  - Backend: 8080 (default)
+  - PostgreSQL: 5432
+  - Redis: 6379
+  - MinIO: 9000 (API), 9001 (Console)
+  - MailHog: 1025 (SMTP), 8025 (UI)
+  - Frontend: 3000 (dev), 80 (Docker/production)
+
+==================================================
+6. API DOCUMENTATION
+==================================================
+
+--- HEALTH ---
+
+METHOD: GET
+ENDPOINT: /api/health
+PURPOSE: Health check
+REQUEST: None
+REQUEST PARAMETERS: None
+REQUEST BODY: None
+RESPONSE: 200 OK
+RESPONSE FORMAT: { "status": "UP", "application": "WorkHive Backend", "version": "1.0.0", "timestamp": "..." }
+ERROR RESPONSES: None
+SOURCE FILE: common/controller/HealthController.java
+
+--- AUTHENTICATION ---
+
+METHOD: POST
+ENDPOINT: /api/auth/workspace (also /api/auth/create-workspace)
+PURPOSE: Create new tenant workspace and admin account
+REQUEST: JSON body
+REQUEST PARAMETERS: None
+REQUEST BODY: { "companyName": "string (required)", "companyCode": "string (required, 2-10 chars)", "industry": "string", "timezone": "string", "workingDays": "string", "logoUrl": "string", "adminFullName": "string (required)", "adminEmail": "string (required, email)", "adminPassword": "string (required, min 8)", "adminPhone": "string" }
+RESPONSE: 201 Created
+RESPONSE FORMAT: { "accessToken": "string", "refreshToken": "string", "tokenType": "Bearer", "user": { "id", "email", "fullName", "role", "employeeCode", "avatarUrl", "departmentId", "teamId", "managerId" }, "tenant": { "id", "name", "code", "logoUrl", "timezone" } }
+ERROR RESPONSES: 400 (validation), 409 (duplicate)
+SOURCE FILE: module/auth/controller/AuthController.java
+
+METHOD: POST
+ENDPOINT: /api/auth/login
+PURPOSE: Authenticate user
+REQUEST: JSON body
+REQUEST PARAMETERS: None
+REQUEST BODY: { "email": "string (required)", "password": "string (required)" }
+RESPONSE: 200 OK
+RESPONSE FORMAT: Same as AuthResponse above
+ERROR RESPONSES: 400 (validation), 401 (bad credentials)
+SOURCE FILE: module/auth/controller/AuthController.java
+
+METHOD: POST
+ENDPOINT: /api/auth/refresh
+PURPOSE: Refresh access token
+REQUEST: JSON body
+REQUEST PARAMETERS: None
+REQUEST BODY: { "refreshToken": "string (required)" }
+RESPONSE: 200 OK
+RESPONSE FORMAT: Same as AuthResponse
+ERROR RESPONSES: 400, 401
+SOURCE FILE: module/auth/controller/AuthController.java
+
+METHOD: POST
+ENDPOINT: /api/auth/logout
+PURPOSE: Logout (revoke refresh token)
+REQUEST: Bearer token (authenticated)
+REQUEST PARAMETERS: None
+REQUEST BODY: None
+RESPONSE: 200 OK
+RESPONSE FORMAT: { "message": "Logged out successfully" }
+ERROR RESPONSES: 401
+SOURCE FILE: module/auth/controller/AuthController.java
+
+METHOD: GET
+ENDPOINT: /api/auth/me
+PURPOSE: Get current authenticated user info
+REQUEST: Bearer token
+REQUEST PARAMETERS: None
+REQUEST BODY: None
+RESPONSE: 200 OK
+RESPONSE FORMAT: { "userId": "uuid", "tenantId": "uuid", "role": "string" }
+ERROR RESPONSES: 401
+SOURCE FILE: module/auth/controller/AuthController.java
+
+METHOD: POST
+ENDPOINT: /api/auth/clean-test-users
+PURPOSE: Clean up test user accounts
+REQUEST: Bearer token
+REQUEST PARAMETERS: None
+REQUEST BODY: None
+RESPONSE: 200 OK
+RESPONSE FORMAT: { ... cleanup result map }
+ERROR RESPONSES: 401
+SOURCE FILE: module/auth/controller/AuthController.java
+
+--- USERS ---
+
+METHOD: GET
+ENDPOINT: /api/users
+PURPOSE: List users (paginated)
+REQUEST PARAMETERS: page (default 0), size (default 20)
+RESPONSE FORMAT: Page<User> (Spring Page: { content: [...], totalElements, totalPages, ... })
+SOURCE FILE: module/user/controller/UserController.java
+
+METHOD: GET
+ENDPOINT: /api/users/active
+PURPOSE: List all active users
+RESPONSE FORMAT: List<User>
+
+METHOD: GET
+ENDPOINT: /api/users/me
+PURPOSE: Get current user full details
+RESPONSE FORMAT: User object
+
+METHOD: GET
+ENDPOINT: /api/users/{id}
+PURPOSE: Get specific user
+RESPONSE FORMAT: User object
+
+METHOD: POST
+ENDPOINT: /api/users
+PURPOSE: Create user (TENANT_ADMIN only)
+REQUEST BODY: { "email", "fullName", "password" (min 8), "role" (default "EMPLOYEE"), "departmentId", "teamId", "managerId", "phone" }
+RESPONSE: 201 Created, User object
+
+METHOD: PUT
+ENDPOINT: /api/users/{id}
+PURPOSE: Update user (TENANT_ADMIN only)
+REQUEST BODY: { "fullName" (required), "role", "departmentId", "teamId", "managerId", "phone", "avatarUrl", "timezone", "status" }
+
+METHOD: PUT
+ENDPOINT: /api/users/profile
+PURPOSE: Update own profile
+REQUEST BODY: { "fullName" (required), "phone", "avatarUrl", "timezone" }
+
+METHOD: POST
+ENDPOINT: /api/users/change-password
+PURPOSE: Change own password
+REQUEST BODY: { "currentPassword" (required), "newPassword" (required, min 8) }
+
+METHOD: DELETE
+ENDPOINT: /api/users/{id}
+PURPOSE: Deactivate user (TENANT_ADMIN only)
+
+METHOD: POST
+ENDPOINT: /api/users/{id}/archive
+PURPOSE: Archive user (TENANT_ADMIN only)
+
+METHOD: POST
+ENDPOINT: /api/users/{id}/restore
+PURPOSE: Restore archived user (TENANT_ADMIN only)
+
+METHOD: DELETE
+ENDPOINT: /api/users/{id}/permanent
+PURPOSE: Permanently delete user (TENANT_ADMIN only)
+
+METHOD: GET
+ENDPOINT: /api/users/archived
+PURPOSE: List archived users (TENANT_ADMIN only)
+
+METHOD: POST
+ENDPOINT: /api/users/{id}/reactivate
+PURPOSE: Reactivate deactivated user (TENANT_ADMIN only)
+
+SOURCE FILE: module/user/controller/UserController.java
+
+--- INVITATIONS ---
+
+METHOD: GET
+ENDPOINT: /api/invitations
+PURPOSE: List invitations (TENANT_ADMIN, paginated)
+REQUEST PARAMETERS: page (default 0), size (default 20)
+
+METHOD: POST
+ENDPOINT: /api/invitations
+PURPOSE: Invite user (TENANT_ADMIN only)
+REQUEST BODY: { "email" (required), "name", "role" (default "EMPLOYEE"), "departmentId", "teamId", "managerId" }
+RESPONSE: 201 Created, InviteUserResponse { id, email, name, role, token, inviteUrl, emailStatus, message, errorMessage, departmentId, teamId, managerId }
+
+METHOD: GET
+ENDPOINT: /api/invitations/token/{token}
+PURPOSE: Get invitation details by token (PUBLIC)
+RESPONSE FORMAT: InvitationDetailsResponse { id, email, name, role, tenantName, tenantCode, departmentName, teamName, managerName, status, valid, message }
+
+METHOD: POST
+ENDPOINT: /api/invitations/{id}/resend
+PURPOSE: Resend invitation email (TENANT_ADMIN)
+
+METHOD: POST
+ENDPOINT: /api/invitations/accept
+PURPOSE: Accept invitation and create account (PUBLIC)
+REQUEST BODY: { "token" (required), "fullName" (required), "password" (required, min 8), "phone" }
+RESPONSE FORMAT: AuthResponse (same as login)
+
+METHOD: DELETE
+ENDPOINT: /api/invitations/{id}
+PURPOSE: Revoke invitation (TENANT_ADMIN)
+
+SOURCE FILE: module/user/controller/InvitationController.java
+
+--- EMAIL CONNECTIONS ---
+
+METHOD: GET
+ENDPOINT: /api/email-connections/status
+PURPOSE: Get admin's email connection status
+
+METHOD: POST
+ENDPOINT: /api/email-connections/gmail/connect
+PURPOSE: Initiate Gmail OAuth flow, returns Google auth URL
+
+METHOD: GET
+ENDPOINT: /api/email-connections/gmail/callback
+PURPOSE: OAuth callback from Google (PUBLIC, redirects to frontend)
+
+METHOD: POST
+ENDPOINT: /api/email-connections/gmail/callback-exchange
+PURPOSE: Frontend-initiated code exchange
+REQUEST BODY: { "code", "state" }
+
+METHOD: DELETE
+ENDPOINT: /api/email-connections/disconnect
+PURPOSE: Disconnect email connection
+
+METHOD: POST
+ENDPOINT: /api/email-connections/gmail/reconnect
+PURPOSE: Re-initiate Gmail OAuth
+
+SOURCE FILE: module/user/controller/EmailConnectionController.java
+
+--- PROJECTS ---
+
+METHOD: GET
+ENDPOINT: /api/projects
+PURPOSE: List projects (paginated)
+REQUEST PARAMETERS: page (default 0), size (default 20)
+RESPONSE FORMAT: Page<Project>
+
+METHOD: GET
+ENDPOINT: /api/projects/{id}
+PURPOSE: Get project by ID
+
+METHOD: POST
+ENDPOINT: /api/projects
+PURPOSE: Create project (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "name" (required), "description", "managerId", "departmentId", "teamId", "priority" (default "MEDIUM"), "status" (default "PLANNING"), "startDate", "targetDate", "memberIds": [uuid] }
+
+METHOD: PUT
+ENDPOINT: /api/projects/{id}
+PURPOSE: Update project (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "name" (required), "description", "managerId", "departmentId", "teamId", "priority", "status", "startDate", "targetDate" }
+
+METHOD: DELETE
+ENDPOINT: /api/projects/{id}
+PURPOSE: Archive project (TENANT_ADMIN, MANAGER)
+
+METHOD: GET
+ENDPOINT: /api/projects/{id}/members
+PURPOSE: Get project members
+
+METHOD: POST
+ENDPOINT: /api/projects/{id}/members
+PURPOSE: Add member to project (TENANT_ADMIN, MANAGER)
+REQUEST PARAMETERS: userId (required), role (default "MEMBER")
+
+METHOD: DELETE
+ENDPOINT: /api/projects/{id}/members/{userId}
+PURPOSE: Remove member from project
+
+METHOD: GET
+ENDPOINT: /api/projects/{id}/milestones
+PURPOSE: Get project milestones
+
+METHOD: POST
+ENDPOINT: /api/projects/{id}/milestones
+PURPOSE: Create milestone (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "name" (required), "description", "targetDate" }
+
+METHOD: PATCH
+ENDPOINT: /api/projects/milestones/{milestoneId}/complete
+PURPOSE: Complete milestone (TENANT_ADMIN, MANAGER)
+
+SOURCE FILE: module/project/controller/ProjectController.java
+
+--- TASKS ---
+
+METHOD: GET
+ENDPOINT: /api/tasks
+PURPOSE: List tasks (paginated, filterable)
+REQUEST PARAMETERS: projectId (optional), assigneeId (optional), page (default 0), size (default 20)
+RESPONSE FORMAT: Page<Task>
+
+METHOD: GET
+ENDPOINT: /api/tasks/my-active
+PURPOSE: Get current user's active tasks
+RESPONSE FORMAT: List<Task>
+
+METHOD: GET
+ENDPOINT: /api/tasks/{id}
+PURPOSE: Get task by ID
+
+METHOD: POST
+ENDPOINT: /api/tasks
+PURPOSE: Create task
+REQUEST BODY: { "projectId", "title" (required), "description", "assigneeId", "reviewerId", "priority" (default "MEDIUM"), "status" (default "TODO"), "dueDate", "labels", "estimatedHours", "milestoneId", "subtasks": ["title1", "title2"] }
+
+METHOD: PUT
+ENDPOINT: /api/tasks/{id}
+PURPOSE: Update task
+REQUEST BODY: { "title" (required), "description", "assigneeId", "reviewerId", "priority", "status", "dueDate", "labels", "estimatedHours", "actualHours", "milestoneId", "version" }
+
+METHOD: DELETE
+ENDPOINT: /api/tasks/{id}
+PURPOSE: Archive task (TENANT_ADMIN, MANAGER)
+
+METHOD: PATCH
+ENDPOINT: /api/tasks/{id}/status
+PURPOSE: Update task status
+REQUEST BODY: { "status" (required), "comment", "version" }
+
+METHOD: POST
+ENDPOINT: /api/tasks/{id}/submit-review
+PURPOSE: Submit task for review
+REQUEST BODY: { "workSummary" (required), "repositoryUrl" (required), "provider", "branch", "pullRequestUrl", "commitSha" }
+
+METHOD: GET
+ENDPOINT: /api/tasks/{id}/submissions
+PURPOSE: Get task submissions
+
+METHOD: PATCH/POST
+ENDPOINT: /api/tasks/{id}/review
+PURPOSE: Review task (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "decision" (required: "APPROVED" or "CHANGES_REQUESTED"), "comment" }
+
+METHOD: GET
+ENDPOINT: /api/tasks/{id}/subtasks
+
+METHOD: POST
+ENDPOINT: /api/tasks/{id}/subtasks
+REQUEST BODY: { "title" (required) }
+
+METHOD: PATCH
+ENDPOINT: /api/tasks/subtasks/{subtaskId}/toggle (also /api/tasks/{id}/subtasks/{subtaskId}/toggle)
+PURPOSE: Toggle subtask completion
+
+METHOD: GET
+ENDPOINT: /api/tasks/{id}/comments
+REQUEST PARAMETERS: page, size
+
+METHOD: POST
+ENDPOINT: /api/tasks/{id}/comments
+REQUEST BODY: { "content" (required) }
+
+METHOD: GET
+ENDPOINT: /api/tasks/{id}/history
+PURPOSE: Get task change history
+
+SOURCE FILE: module/task/controller/TaskController.java
+
+--- TEAMS ---
+
+METHOD: GET /api/teams (paginated)
+METHOD: GET /api/teams/active
+METHOD: GET /api/teams/all
+METHOD: GET /api/teams/department/{departmentId}
+METHOD: GET /api/teams/{id}
+METHOD: POST /api/teams (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "name", "departmentId", "leadId", "description" }
+METHOD: PUT /api/teams/{id} (TENANT_ADMIN)
+METHOD: DELETE /api/teams/{id} (TENANT_ADMIN)
+METHOD: POST /api/teams/{id}/archive (TENANT_ADMIN)
+METHOD: POST /api/teams/{id}/restore (TENANT_ADMIN)
+METHOD: DELETE /api/teams/{id}/permanent (TENANT_ADMIN)
+METHOD: GET /api/teams/archived (TENANT_ADMIN)
+SOURCE FILE: module/team/controller/TeamController.java
+
+--- DEPARTMENTS ---
+
+METHOD: GET /api/departments (paginated)
+METHOD: GET /api/departments/active
+METHOD: GET /api/departments/{id}
+METHOD: POST /api/departments (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "name", "description", "managerId" }
+METHOD: PUT /api/departments/{id} (TENANT_ADMIN, MANAGER)
+METHOD: DELETE /api/departments/{id} (TENANT_ADMIN)
+METHOD: POST /api/departments/{id}/archive (TENANT_ADMIN)
+METHOD: POST /api/departments/{id}/restore (TENANT_ADMIN)
+METHOD: DELETE /api/departments/{id}/permanent (TENANT_ADMIN)
+METHOD: GET /api/departments/archived (TENANT_ADMIN)
+SOURCE FILE: module/department/controller/DepartmentController.java
+
+--- ATTENDANCE ---
+
+METHOD: POST /api/attendance/check-in
+REQUEST BODY: { (optional) }
+METHOD: POST /api/attendance/check-out
+REQUEST BODY: { (optional) }
+METHOD: GET /api/attendance/today
+RESPONSE FORMAT: { "checkedIn": bool, "status": "string", "record": Attendance|null }
+METHOD: GET /api/attendance/my (paginated)
+METHOD: GET /api/attendance/daily (TENANT_ADMIN, MANAGER)
+REQUEST PARAMETERS: date (ISO date, optional), page, size
+SOURCE FILE: module/attendance/controller/AttendanceController.java
+
+--- TIME TRACKING ---
+
+METHOD: POST /api/time-entries (also /api/time)
+REQUEST BODY: TimeEntryRequest (task-level time logging)
+METHOD: GET /api/time-entries/my (paginated)
+METHOD: GET /api/time-entries/task/{taskId}
+SOURCE FILE: module/attendance/controller/TimeTrackingController.java
+
+--- LEAVE ---
+
+METHOD: POST /api/leaves/apply (also /api/leave/apply)
+REQUEST BODY: ApplyLeaveRequest
+METHOD: GET /api/leaves/my (paginated)
+METHOD: GET /api/leaves/my-balances
+REQUEST PARAMETERS: year (optional)
+METHOD: GET /api/leaves (TENANT_ADMIN, MANAGER; paginated)
+REQUEST PARAMETERS: status (optional), page, size
+METHOD: PATCH/POST /api/leaves/{id}/review (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "status", "reviewComment" }
+METHOD: GET /api/leaves/types
+METHOD: POST /api/leaves/types (TENANT_ADMIN)
+REQUEST BODY: CreateLeaveTypeRequest
+SOURCE FILE: module/leave/controller/LeaveController.java
+
+--- DOCUMENTS ---
+
+METHOD: GET /api/documents (paginated)
+METHOD: GET /api/documents/my (paginated)
+METHOD: GET /api/documents/entity
+REQUEST PARAMETERS: entityType, entityId
+METHOD: GET /api/documents/{id}
+METHOD: POST /api/documents (multipart/form-data)
+REQUEST PARAMETERS: file (required), name, description, entityType, entityId
+METHOD: GET /api/documents/{id}/download (returns file)
+METHOD: DELETE /api/documents/{id}
+SOURCE FILE: module/document/controller/DocumentController.java
+
+--- ANNOUNCEMENTS ---
+
+METHOD: GET /api/announcements (paginated)
+METHOD: GET /api/announcements/my
+METHOD: GET /api/announcements/{id}
+METHOD: POST /api/announcements (TENANT_ADMIN, MANAGER)
+REQUEST BODY: { "title", "content", "targetType", "targetId", "priority" }
+SOURCE FILE: module/announcement/controller/AnnouncementController.java
+
+--- NOTIFICATIONS ---
+
+METHOD: GET /api/notifications (paginated)
+METHOD: GET /api/notifications/unread-count
+RESPONSE FORMAT: { "count": number }
+METHOD: PATCH /api/notifications/{id}/read
+METHOD: POST /api/notifications/read-all
+SOURCE FILE: module/notification/controller/NotificationController.java
+
+--- SEARCH ---
+
+METHOD: GET
+ENDPOINT: /api/search
+PURPOSE: Global search across users, projects, tasks, documents
+REQUEST PARAMETERS: q (query string, required)
+RESPONSE FORMAT: { "users": [...], "projects": [...], "tasks": [...], "documents": [...] }
+SOURCE FILE: module/search/controller/SearchController.java
+
+--- REPORTS ---
+
+METHOD: GET /api/reports/employee
+REQUEST PARAMETERS: userId (optional, defaults to current user)
+RESPONSE FORMAT: EmployeeWorkReport DTO
+
+METHOD: GET /api/reports/project/{projectId}
+RESPONSE FORMAT: ProjectReport DTO
+
+METHOD: GET /api/reports/organization (TENANT_ADMIN, MANAGER)
+RESPONSE FORMAT: OrganizationReport DTO
+
+SOURCE FILE: module/report/controller/ReportController.java
+
+--- EXPORTS ---
+
+METHOD: GET /api/exports/tasks/csv (also /api/exports/csv/tasks)
+RESPONSE: CSV file download
+
+METHOD: GET /api/exports/attendance/xlsx (also /api/exports/attendance/excel)
+RESPONSE: XLSX file download
+
+METHOD: GET /api/exports/leave/csv
+RESPONSE: CSV file download
+
+METHOD: GET /api/exports/activity/csv
+RESPONSE: CSV file download
+
+METHOD: GET /api/exports/employee/pdf
+REQUEST PARAMETERS: userId (optional)
+RESPONSE: PDF file download
+
+METHOD: GET /api/exports/project/{projectId}/pdf
+RESPONSE: PDF file download
+
+METHOD: GET /api/exports/organization/pdf (TENANT_ADMIN, MANAGER)
+RESPONSE: PDF file download
+
+SOURCE FILE: module/export/controller/ExportController.java
+
+--- INTEGRATIONS ---
+
+METHOD: GET /api/integrations (list all)
+METHOD: POST /api/integrations/connect
+REQUEST BODY: ConnectIntegrationRequest
+METHOD: DELETE /api/integrations/{id} (disconnect)
+METHOD: POST /api/integrations/{id}/sync (also provider-specific: /github/{id}/sync, /jira/{id}/sync, /gitlab/{id}/sync, /slack/{id}/sync)
+METHOD: POST /api/integrations/{id}/mappings
+METHOD: GET /api/integrations/{id}/mappings
+
+JIRA:
+  GET /api/integrations/jira/{id}/projects
+  GET /api/integrations/jira/{id}/issues?projectKey=...
+
+GITLAB:
+  GET /api/integrations/gitlab/{id}/projects
+  GET /api/integrations/gitlab/{id}/projects/{projectId}/commits
+  GET /api/integrations/gitlab/{id}/projects/{projectId}/merge-requests
+
+SLACK:
+  GET /api/integrations/slack/{id}/channels
+  POST /api/integrations/slack/{id}/test-message
+
+GITHUB:
+  GET /api/integrations/github/oauth/url
+  POST /api/integrations/github/oauth/exchange
+  GET /api/integrations/github/{id}/repositories
+  GET /api/integrations/github/{id}/commits?repo=...
+  GET /api/integrations/github/{id}/pull-requests?repo=...
+  GET /api/integrations/github/{id}/issues?repo=...
+  GET /api/integrations/github/{id}/overview
+  POST /api/integrations/webhook/github (PUBLIC webhook endpoint)
+
+SOURCE FILE: module/integration/controller/IntegrationController.java
+
+--- ARCHIVE ---
+
+METHOD: GET /api/archive (TENANT_ADMIN)
+REQUEST PARAMETERS: type (optional)
+RESPONSE FORMAT: ArchiveSummaryResponse
+
+METHOD: POST /api/archive/restore/{type}/{id} (TENANT_ADMIN)
+METHOD: DELETE /api/archive/permanent/{type}/{id} (TENANT_ADMIN)
+
+SOURCE FILE: module/archive/controller/ArchiveController.java
+
+--- ACTION CENTER ---
+
+METHOD: GET /api/action-center (TENANT_ADMIN, MANAGER)
+REQUEST PARAMETERS: type (optional)
+RESPONSE FORMAT: List<ActionItem>
+
+METHOD: GET /api/action-center/summary (TENANT_ADMIN, MANAGER)
+RESPONSE FORMAT: ActionCenterSummary
+
+SOURCE FILE: module/actioncenter/controller/ActionCenterController.java
+
+--- ACTIVITIES ---
+
+METHOD: GET /api/activities (paginated)
+REQUEST PARAMETERS: userId (optional), page, size
+METHOD: GET /api/activities/my (paginated)
+METHOD: GET /api/activities/project/{projectId} (paginated)
+METHOD: GET /api/activities/heatmap
+REQUEST PARAMETERS: userId (optional)
+RESPONSE FORMAT: ActivityHeatmapResponse
+
+SOURCE FILE: module/activity/controller/WorkActivityController.java
+
+--- SETTINGS ---
+
+METHOD: GET /api/settings
+RESPONSE FORMAT: Map<String, Object>
+
+METHOD: PUT /api/settings (TENANT_ADMIN)
+REQUEST BODY: Map<String, String> of setting key-value pairs
+
+SOURCE FILE: module/settings/controller/SettingsController.java
+
+==================================================
+7. VECTOR SEARCH ENGINE
+==================================================
+
+NOT FOUND / UNKNOWN
+
+This project does NOT implement any vector search engine, embeddings, HNSW,
+KD-Tree, or brute-force vector indexing. There are no LLM or ML model components.
+
+The search functionality (SearchService) is a simple SQL-based global search
+using JPA repository methods with LIKE queries against PostgreSQL.
+
+==================================================
+8. RAG PIPELINE
+==================================================
+
+NOT FOUND / UNKNOWN
+
+This project does NOT implement any RAG (Retrieval-Augmented Generation) pipeline.
+There are no embeddings, vector databases, context construction, or LLM calls.
+
+==================================================
+9. DATA FLOW
+==================================================
+
+Example: User creates a new task
+
+1. User fills task form in React frontend (TasksPage.tsx)
+2. Frontend calls taskApi.create(data) which sends POST /api/tasks with JSON body
+3. Axios interceptor attaches Bearer JWT token to Authorization header
+4. Spring Boot receives request on port 8080
+5. JwtAuthenticationFilter extracts and validates the JWT
+6. TenantContext is set with userId, tenantId, role from JWT claims
+7. Request reaches TaskController.createTask()
+8. @Valid triggers validation on CreateTaskRequest DTO
+9. TaskController calls TaskService.createTask(request)
+10. TaskService reads TenantContext.requireTenantId() for tenant isolation
+11. TaskService creates Task entity, sets tenantId, creatorId from context
+12. TaskService saves Task via TaskRepository (JPA → PostgreSQL)
+13. TaskService creates subtasks if provided
+14. TaskService publishes activity event via WorkActivityService
+15. TaskService may create notifications for assignee
+16. TaskService returns saved Task entity
+17. TaskController returns ResponseEntity with 201 status and Task JSON
+18. Spring serializes Task to JSON (Jackson, non-null, ISO dates)
+19. Response sent back to frontend
+20. Frontend receives response, React Query cache is invalidated
+21. UI updates to show the new task
+
+Example: User logs in
+
+1. User enters email/password on LoginPage.tsx
+2. Frontend calls authApi.login({ email, password })
+3. POST /api/auth/login (public endpoint, no JWT required)
+4. AuthController.login() → AuthService.login()
+5. AuthService validates credentials (BCrypt password check)
+6. AuthService generates access + refresh tokens via JwtTokenProvider
+7. AuthService saves refresh token to refresh_tokens table
+8. AuthService constructs AuthResponse with user info, tenant info, tokens
+9. Response returned to frontend
+10. Frontend authStore.setAuth(data) saves tokens to localStorage
+11. Zustand state updates, isAuthenticated = true
+12. React Router redirects to /dashboard
+
+==================================================
+10. FRONTEND INTEGRATION INFORMATION
+==================================================
+
+EXISTING API ENDPOINTS: See Section 6 for complete list. All endpoints are under /api prefix.
+
+EXPECTED REQUEST FORMATS:
+  - Content-Type: application/json (for all non-file endpoints)
+  - Content-Type: multipart/form-data (for document uploads)
+  - Authorization: Bearer <accessToken> (for authenticated endpoints)
+
+EXPECTED RESPONSE FORMATS:
+  - JSON (Content-Type: application/json)
+  - Paginated responses use Spring's Page format:
+    { "content": [...], "totalElements": N, "totalPages": N, "number": N, "size": N, ... }
+  - File downloads return binary with Content-Disposition headers
+  - Errors: { "error": "CODE", "message": "text", "timestamp": "ISO" }
+  - Validation errors: { "error": "VALIDATION_ERROR", "message": "text", "fields": { "field": "msg" }, "timestamp": "ISO" }
+
+SERVER PORT:
+  - Backend: 8080
+  - Frontend dev: 3000
+
+CORS CONFIGURATION (SecurityConfig.java):
+  - Allowed Origin Patterns:
+    - http://localhost:*
+    - http://127.0.0.1:*
+    - https://*.railway.app
+    - https://*.up.railway.app
+    - https://*.onrender.com
+    - Plus value of APP_FRONTEND_URL env var
+  - Allowed Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+  - Allowed Headers: * (all)
+  - Allow Credentials: true
+  - Max Age: 3600s
+
+AUTHENTICATION:
+  - JWT Bearer tokens in Authorization header
+  - Access token expires in 1 hour (3600000 ms)
+  - Refresh token expires in 7 days (604800000 ms)
+  - Token refresh: POST /api/auth/refresh with { refreshToken }
+  - Automatic 401 retry with token refresh in frontend Axios interceptor
+
+ENVIRONMENT VARIABLES:
+  - VITE_API_BASE_URL: Frontend env var for backend API URL
+  - In development: proxied via Vite (/api → http://localhost:8080, /ws → ws://localhost:8080)
+  - In production: set to full backend URL (e.g., https://workhive-backend-zg37.onrender.com/api)
+
+API BASE URL:
+  - Development: /api (proxied by Vite to localhost:8080)
+  - Production: ${VITE_API_BASE_URL} (env var)
+
+EXISTING FRONTEND CODE:
+  - Complete React + TypeScript frontend ALREADY EXISTS
+  - Vite + React 18 + TypeScript + TailwindCSS 3.4
+  - State management: Zustand (authStore, uiStore)
+  - Data fetching: TanStack React Query
+  - HTTP client: Axios with interceptors (client.ts)
+  - All API service functions in services.ts
+  - TypeScript types in types/index.ts
+  - 20+ page components
+  - Routing with React Router DOM v6
+  - WebSocket support via STOMP.js + SockJS
+  - Path alias: @ → src/
+
+WEBSOCKET:
+  - Endpoint: /ws (SockJS fallback)
+  - STOMP protocol
+  - Broker prefixes: /topic, /queue
+  - Application destination prefix: /app
+  - User destination prefix: /user
+  - Vite proxy: /ws → ws://localhost:8080
+
+PUBLIC (UNAUTHENTICATED) ENDPOINTS:
+  - /api/auth/** (login, register, refresh)
+  - /api/invitations/accept, /api/invitations/accept/**
+  - /api/invitations/token/**
+  - /api/email-connections/gmail/callback
+  - /api/integrations/webhook/**
+  - /api/health
+  - /actuator/health
+  - /ws/**
+  - OPTIONS requests
+
+LIMITATIONS / INTEGRATION ISSUES:
+  - Frontend client.ts has a hardcoded Render URL fallback:
+    if hostname includes 'onrender.com', base URL defaults to 'https://workhive-backend-zg37.onrender.com/api'
+  - Max file upload: 50MB
+  - Pagination is zero-indexed (Spring default)
+  - Jackson serialization: non-null properties only, ISO date strings
+
+==================================================
+11. EXISTING FEATURES
+==================================================
+
+CORE FEATURES:
+  - Multi-tenant workspace creation and isolation
+  - JWT authentication (access + refresh tokens)
+  - Role-based access control (TENANT_ADMIN, MANAGER, EMPLOYEE)
+  - Thread-local tenant context from JWT
+  - User registration, login, logout
+  - Invitation system with email delivery
+  - Password management (BCrypt hashing)
+  - Profile management
+
+SEARCH FEATURES:
+  - Global search across users, projects, tasks, documents (SQL LIKE-based)
+  - Frontend global search modal (Cmd/Ctrl+K)
+
+RAG FEATURES:
+  - NOT FOUND / UNKNOWN (none implemented)
+
+API FEATURES:
+  - Full REST API with 100+ endpoints
+  - Paginated list responses (Spring Page)
+  - Bean validation on all request DTOs
+  - Global exception handling with consistent error format
+  - Health check endpoint
+  - Actuator endpoints (health, info, metrics)
+  - CORS configuration for multiple deployment targets
+  - Correlation ID per request (X-Correlation-Id header)
+
+PERFORMANCE FEATURES:
+  - HikariCP connection pool (max 20, min idle 5)
+  - Redis integration (caching layer)
+  - Database indexes on all key columns
+  - Async method support (@EnableAsync)
+  - Scheduled task support (@EnableScheduling)
+  - Gzip compression in Nginx
+  - Static asset caching (6 months, immutable)
+  - Vite dev server with proxy (no CORS issues in dev)
+
+SECURITY FEATURES:
+  - BCrypt password hashing
+  - JWT with HMAC-SHA signing
+  - Stateless session management
+  - CSRF disabled (stateless API)
+  - Tenant isolation via JWT claims (never from client data)
+  - @PreAuthorize role checks on admin/manager endpoints
+  - AES encryption for integration access tokens (CryptoUtils)
+  - Non-privileged Docker user (workhive)
+  - Correlation ID for request tracing
+  - MDC structured logging with tenantId/userId
+
+OTHER FEATURES:
+  - WebSocket real-time notifications
+  - File upload/download via MinIO
+  - CSV/XLSX/PDF report exports
+  - GitHub OAuth integration with webhooks
+  - Jira, GitLab, Slack integrations
+  - Gmail OAuth email connection
+  - Activity feed with heatmap
+  - Outbox event pattern for reliable event processing
+  - Audit logging
+  - Soft-delete archive system with restore
+  - Action center (pending approvals)
+  - Organization settings
+  - Flyway database migrations (6 migration files)
+  - Docker Compose for full local development stack
+  - Cloud deployment configs (Render, Railway)
+  - E2E test scripts (PowerShell)
+
+==================================================
+12. SECURITY
+==================================================
+
+IMPLEMENTED:
+
+ENCRYPTION:
+  - Passwords: BCrypt (BCryptPasswordEncoder)
+  - Integration tokens: AES encryption (CryptoUtils.java)
+  - JWT signing: HMAC-SHA (jjwt library)
+
+AUTHENTICATION:
+  - JWT Bearer token authentication
+  - Access token (1 hour) + Refresh token (7 days)
+  - Token extraction from Authorization header or query parameter
+  - Automatic token refresh flow
+  - Refresh token persistence in database
+  - Refresh token revocation on logout
+
+AUTHORIZATION:
+  - Role-based: TENANT_ADMIN, MANAGER, EMPLOYEE
+  - Spring Security @PreAuthorize annotations
+  - Method-level security (@EnableMethodSecurity)
+  - ProtectedRoute and AdminRoute guards in frontend
+
+INPUT VALIDATION:
+  - Jakarta Bean Validation (@NotBlank, @Email, @Size)
+  - @Valid annotation on all request bodies
+  - Validation error handler returns field-level errors
+
+API SECURITY:
+  - CORS with allowlist of origins
+  - Stateless sessions (no cookies/session IDs)
+  - 401/403 JSON error responses
+  - Max upload size enforcement (50MB)
+  - Rate limiting exception support (RateLimitException)
+  - Request correlation IDs
+
+SECRETS/CONFIGURATION:
+  - Environment variables for all secrets
+  - .env file (git-ignored)
+  - .env.example template provided
+  - JWT secret configurable via JWT_SECRET env var
+  - Database credentials via env vars
+  - OAuth credentials via env vars
+
+TENANT ISOLATION:
+  - TenantContext from JWT claims (NEVER from client-supplied URL/body/params)
+  - All queries are tenant-scoped
+  - TenantAccessDeniedException for cross-tenant access attempts
+
+==================================================
+13. PERFORMANCE
+==================================================
+
+MULTITHREADING:
+  - @EnableAsync: Spring async method execution support
+  - @EnableScheduling: Background scheduled tasks
+
+INDEXING:
+  - PostgreSQL indexes on: tenant_id, email, role, status, project_id, assignee_id, task_id, user_id, date, created_at, entity_type+entity_id, token
+  - Composite indexes for tenant-scoped queries
+
+CACHING:
+  - Redis 7 integration configured (spring-boot-starter-data-redis)
+  - Connection pool via Lettuce (default Spring Boot Redis client)
+
+COMPLEXITY:
+  - Search: SQL LIKE queries (linear scan with index support)
+  - Pagination: OFFSET-based (Spring Data JPA default)
+
+PARALLEL PROCESSING:
+  - Async email sending (Spring @Async)
+  - Outbox event processing (scheduled background task)
+
+OPTIMIZATIONS:
+  - HikariCP: max pool 20, min idle 5, 30s connection timeout
+  - Jackson: non-null serialization only (reduced payload size)
+  - Nginx: gzip compression, static asset caching (6 months)
+  - Docker: JVM container support (-XX:+UseContainerSupport, 75% max RAM)
+
+MEMORY:
+  - Docker JVM: -XX:MaxRAMPercentage=75.0
+  - H2 in-memory for dev profile
+  - ThreadLocal cleanup in filter finally block
+
+==================================================
+14. CONFIGURATION
+==================================================
+
+ENVIRONMENT VARIABLES:
+  Backend:
+    - SPRING_DATASOURCE_URL (default: jdbc:postgresql://localhost:5432/workhive)
+    - SPRING_DATASOURCE_USERNAME (default: workhive)
+    - SPRING_DATASOURCE_PASSWORD (default: workhive_secret_2024)
+    - SPRING_REDIS_HOST (default: localhost)
+    - SPRING_REDIS_PORT (default: 6379)
+    - SPRING_REDIS_PASSWORD (default: empty)
+    - JWT_SECRET (default: workhive-jwt-secret-key-2024-production-grade-minimum-256-bits-long)
+    - JWT_EXPIRATION (default: 3600000 = 1 hour)
+    - JWT_REFRESH_EXPIRATION (default: 604800000 = 7 days)
+    - MINIO_ENDPOINT (default: http://localhost:9000)
+    - MINIO_ACCESS_KEY (default: workhive_minio)
+    - MINIO_SECRET_KEY (default: workhive_minio_secret)
+    - SPRING_MAIL_HOST, SPRING_MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD
+    - SPRING_MAIL_AUTH, SPRING_MAIL_STARTTLS_ENABLE, SPRING_MAIL_STARTTLS_REQUIRED
+    - APP_FRONTEND_URL (default: http://localhost:3000)
+    - GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI
+    - BREVO_API_KEY, BREVO_SENDER_EMAIL
+    - MAILHOG_ENABLED, MAILHOG_SMTP_PORT, MAILHOG_HTTP_PORT
+    - PORT (default: 8080)
+    - SPRING_PROFILES_ACTIVE (default: not set, use 'dev' for H2)
+  Frontend:
+    - VITE_API_BASE_URL (API base URL for production builds)
+
+CONFIGURATION FILES:
+  - backend/src/main/resources/application.yml (main config)
+  - backend/src/main/resources/application-dev.yml (dev profile)
+  - docker-compose.yml (Docker Compose services)
+  - railway.toml (Railway deployment)
+  - render.yaml (Render deployment)
+  - frontend/vite.config.ts (Vite dev server, proxy)
+  - frontend/tailwind.config.js (TailwindCSS)
+  - frontend/tsconfig.json (TypeScript)
+  - .env / .env.example (secrets)
+
+REQUIRED SERVICES:
+  - PostgreSQL 16 (required for production)
+  - Redis 7 (optional, health checks disabled)
+  - MinIO (required for document features)
+  - SMTP server (required for email features; MailHog for dev)
+
+REQUIRED PORTS:
+  - 8080 (backend)
+  - 5432 (PostgreSQL)
+  - 6379 (Redis)
+  - 9000/9001 (MinIO)
+  - 1025/8025 (MailHog)
+  - 3000 (frontend dev)
+
+STARTUP COMMANDS:
+  Backend: mvn spring-boot:run (or java -jar target/workhive-backend-1.0.0.jar)
+  Frontend: pnpm dev (or npm run dev)
+  Docker: docker compose up
+
+BUILD COMMANDS:
+  Backend: mvn clean package -DskipTests
+  Frontend: pnpm run build (or npm run build; runs tsc && vite build)
+
+TEST COMMANDS:
+  Backend: mvn test
+  E2E: ./test-e2e.ps1 (PowerShell, against running backend)
+
+==================================================
+15. HOW TO RUN THE EXISTING PROJECT
+==================================================
+
+OPTION 1: Docker Compose (Recommended)
+  cd c:\workhivenew
+  docker compose up
+
+  This starts: PostgreSQL, Redis, MinIO, MailHog, Backend, Frontend
+  Backend: http://localhost:8080
+  Frontend: http://localhost:3000
+  MailHog UI: http://localhost:8025
+  MinIO Console: http://localhost:9001
+
+OPTION 2: Manual (Development)
+
+  Prerequisites:
+    - JDK 21
+    - Node.js 20+
+    - pnpm (or npm)
+    - PostgreSQL 16 running on localhost:5432
+    - (Optional) Redis on localhost:6379
+    - (Optional) MinIO on localhost:9000
+
+  1. Start PostgreSQL with database 'workhive'
+  2. Copy .env.example to .env and fill in credentials
+
+  Start Backend:
+    cd c:\workhivenew\backend
+    mvn spring-boot:run
+    (or with dev profile: mvn spring-boot:run -Dspring-boot.run.profiles=dev)
+
+  Start Frontend:
+    cd c:\workhivenew\frontend
+    pnpm install
+    pnpm dev
+
+  Frontend runs at http://localhost:3000 with proxy to backend at 8080.
+
+OPTION 3: Dev Profile (H2 in-memory, no external services needed)
+    cd c:\workhivenew\backend
+    mvn spring-boot:run -Dspring-boot.run.profiles=dev
+    (Uses H2 in-memory DB, no Flyway, no Redis, no MinIO)
+
+==================================================
+16. IMPORTANT IMPLEMENTATION DETAILS
+==================================================
+
+1. TENANT ISOLATION:
+   - ALL data is scoped by tenant_id. Every entity has a tenant_id field.
+   - TenantContext is set from JWT claims in JwtAuthenticationFilter.
+   - NEVER trust tenant info from URL, request body, or query params.
+   - Services use TenantContext.requireTenantId() for every query.
+
+2. JWT STRUCTURE:
+   Access token claims: { sub: userId, tenantId, email, role, fullName, iat, exp }
+   Refresh token claims: { sub: userId, tenantId, type: "refresh", jti: randomUUID, iat, exp }
+
+3. SOFT DELETE / ARCHIVING:
+   - Many entities use status field (ACTIVE, ARCHIVED, INACTIVE)
+   - DELETE endpoints typically soft-delete (set status to ARCHIVED)
+   - Permanent delete endpoints exist separately (/{id}/permanent)
+   - Archive system provides bulk restore/permanent delete
+
+4. OPTIMISTIC LOCKING:
+   - Task entity has a 'version' field for optimistic locking
+   - UpdateTaskRequest and UpdateTaskStatusRequest accept version for conflict detection
+
+5. PAGINATION:
+   - All paginated endpoints return Spring Page objects
+   - Frontend expects: { content: [...], totalElements, totalPages, number, size, ... }
+   - Pagination is zero-indexed
+
+6. DATE/TIME:
+   - All timestamps stored as TIMESTAMP WITH TIME ZONE in PostgreSQL
+   - Dates serialized as ISO strings (Jackson: write-dates-as-timestamps=false)
+   - LocalDate used for date-only fields (dueDate, startDate, etc.)
+
+7. FILE STORAGE:
+   - Documents stored in MinIO bucket: workhive-documents
+   - Files referenced by file_path in documents table
+   - Max upload size: 50MB
+   - Content types preserved for proper download headers
+
+8. .ENV LOADING:
+   - WorkHiveApplication.loadDotEnvIfExists() loads .env at startup
+   - Searches: ".env", "../.env", "c:/workhivenew/.env"
+   - Sets Java system properties (not environment variables)
+
+9. DATABASE URL NORMALIZATION:
+   - DatabaseUrlEnvironmentPostProcessor handles various cloud DB URL formats
+   - Converts postgres:// and postgresql:// URLs to jdbc:postgresql://
+   - Extracts username/password from URI userInfo
+
+10. JACKSON SERIALIZATION:
+    - Non-null property inclusion (null fields omitted from JSON)
+    - ISO date strings (not timestamps)
+    - Entities are serialized directly to JSON (no separate response DTOs in most cases)
+
+11. EMPLOYEE CODE:
+    - Auto-generated on user creation (e.g., "EMP-001")
+    - Unique per tenant
+
+12. INTEGRATION TOKEN ENCRYPTION:
+    - Integration access/refresh tokens stored encrypted in DB (access_token_enc, refresh_token_enc)
+    - AES encryption via CryptoUtils
+
+13. OUTBOX EVENTS:
+    - OutboxEvent entity for reliable event processing
+    - Events published to outbox_events table
+    - Background processor picks up and processes events
+
+14. FLYWAY MIGRATIONS:
+    - Enabled only in production profile (not dev)
+    - Baseline-on-migrate: true (handles existing databases)
+    - 6 migration files (V1 through V6)
+
+==================================================
+17. DO NOT BREAK THESE THINGS
+==================================================
+
+1. API CONTRACTS: All existing API endpoint paths, request/response formats must remain unchanged.
+   The frontend relies on exact endpoint paths defined in services.ts.
+
+2. AUTHENTICATION FLOW: JWT token generation, validation, refresh mechanism.
+   The frontend Axios interceptor depends on: { accessToken, refreshToken, user, tenant } response format.
+
+3. TENANT ISOLATION: TenantContext ThreadLocal pattern must not be modified.
+   All queries MUST remain tenant-scoped.
+
+4. DATABASE SCHEMA: Flyway migrations are ordered. Do not modify existing migration files.
+   Add new migrations with sequential version numbers (V7__, V8__, etc.).
+
+5. CORS CONFIGURATION: Frontend depends on the current CORS settings.
+   Adding more origins is safe; removing existing patterns will break deployments.
+
+6. SPRING SECURITY FILTER CHAIN: Public endpoints list must not be reduced.
+   Adding new public endpoints is safe.
+
+7. WEBSOCKET CONFIG: STOMP endpoint at /ws, broker prefixes /topic, /queue, /user.
+   Frontend STOMP client depends on these.
+
+8. VITE PROXY: Frontend dev proxy maps /api → localhost:8080 and /ws → localhost:8080.
+
+9. ENVIRONMENT VARIABLES: All existing env vars must continue to work.
+   Adding new ones is safe.
+
+10. DOCKER COMPOSE: Service names, ports, and network must remain compatible.
+
+11. EXISTING FRONTEND: The frontend/src directory contains a complete working frontend.
+    Any changes must be compatible with existing:
+    - API service functions (services.ts)
+    - Auth store (authStore.ts)
+    - Type definitions (types/index.ts)
+    - Routing (App.tsx)
+
+12. PAGINATION FORMAT: Spring Page object structure must remain consistent.
+    Frontend expects { content, totalElements, totalPages, ... }.
+
+==================================================
+18. KNOWN LIMITATIONS
+==================================================
+
+1. SEARCH: Global search is SQL LIKE-based, not full-text search or vector search.
+   Performance may degrade with large datasets.
+
+2. NO FULL-TEXT SEARCH: No PostgreSQL tsvector/tsquery or external search engine.
+
+3. REDIS HEALTH CHECK DISABLED: Redis health check is disabled in application.yml.
+   Redis failures may silently degrade performance.
+
+4. MAIL HEALTH CHECK DISABLED: Mail health check is disabled. SMTP failures
+   won't show in actuator health.
+
+5. HARDCODED RENDER URL: Frontend client.ts has hardcoded Render URL fallback:
+   'https://workhive-backend-zg37.onrender.com/api'. This is brittle.
+
+6. NO RATE LIMITING IMPLEMENTATION: RateLimitException exists but no actual
+   rate limiting middleware is implemented.
+
+7. ENTITY SERIALIZATION: JPA entities are serialized directly as JSON responses
+   in most controllers (no DTOs for responses). This exposes all entity fields
+   including potentially sensitive data (password_hash is presumably excluded
+   via @JsonIgnore or similar).
+
+8. NO PAGINATION DEFAULTS ENFORCEMENT: Some frontend API calls use size=100
+   or size=50, which could return large payloads.
+
+9. NO WEBSOCKET AUTHENTICATION: WebSocket endpoint (/ws) is public.
+   STOMP connections are not authenticated at the WebSocket level.
+
+10. H2 DEV PROFILE: Dev profile uses H2 with ddl-auto=update which can
+    cause schema drift from production PostgreSQL.
+
+11. NO AUTOMATED TESTS IN CI: Test configuration exists (surefire plugin)
+    but no CI/CD pipeline configuration found.
+
+12. TYPESCRIPT STRICT MODE: TypeScript strict is set to false.
+    Many types use 'any' in the frontend.
+
+13. DOCUMENT STORAGE DEPENDENCY: Document features require MinIO to be running.
+    No fallback for file storage.
+
+14. INVITATION EMAIL: Email delivery depends on SMTP configuration.
+    Email status tracking exists but failures may not be retried automatically.
+
+15. NO API VERSIONING: API has no version prefix (e.g., /api/v1/).
+    Breaking changes would affect all consumers.
+
+16. TASK VERSION FIELD: Optimistic locking via version field exists but
+    the frontend doesn't consistently pass version in all update requests.
+
+==================================================
+19. RECOMMENDED FRONTEND INTEGRATION PLAN
+==================================================
+
+NOTE: A complete React + TypeScript frontend ALREADY EXISTS in the frontend/ directory.
+If the goal is to rebuild or significantly enhance the frontend, the following plan applies.
+If modifying the existing frontend, work within the established patterns below.
+
+SUGGESTED FRONTEND ARCHITECTURE:
+  - Keep existing Vite + React 18 + TypeScript setup
+  - Keep TailwindCSS 3.4 for styling
+  - Keep Zustand for state management (authStore, uiStore)
+  - Keep TanStack React Query for server state
+  - Keep Axios with interceptors (client.ts)
+  - Keep React Router DOM v6 for routing
+  - Add new pages/components alongside existing ones
+
+API INTEGRATION LAYER:
+  - Use existing api/client.ts (Axios instance with JWT interceptor and refresh logic)
+  - Use existing api/services.ts (all API functions are pre-defined)
+  - Extend services.ts for any new endpoints
+  - All API calls go through the centralized Axios instance
+
+COMPONENTS THAT WOULD BE USEFUL:
+  - DataTable: Reusable paginated table component
+  - FormModal: Reusable modal for create/edit forms
+  - ConfirmDialog: Confirmation dialogs for destructive actions
+  - StatusBadge: Consistent status display (active, archived, pending, etc.)
+  - UserAvatar: Avatar with fallback initials
+  - ChartComponents: For reports/dashboard (use a library like recharts)
+  - KanbanColumn: Drag-and-drop Kanban board (exists as KanbanBoard.tsx)
+  - FileUpload: Drag-and-drop file upload component
+  - ActivityTimeline: Activity feed display
+  - HeatmapChart: Activity heatmap visualization
+
+STATE MANAGEMENT NEEDS:
+  - Auth state: Already in authStore.ts (Zustand)
+  - UI state: Already in uiStore.ts (sidebar, search modal)
+  - Server state: Use TanStack React Query (already configured)
+  - Consider adding:
+    - Notification state (unread count, real-time updates)
+    - WebSocket connection state
+
+LOADING/ERROR STATES:
+  - Use React Query's isLoading, isError, error states
+  - Display skeleton loaders during data fetching
+  - Show toast notifications for success/error
+  - Handle 401 gracefully (automatic token refresh already implemented)
+  - Handle 403 with "access denied" messaging
+
+SEARCH UI:
+  - GlobalSearchModal already exists (Cmd/Ctrl+K trigger)
+  - Search results categorized by type (users, projects, tasks, documents)
+  - API: GET /api/search?q=query
+
+RESULT VISUALIZATION:
+  - Dashboard with stat cards and charts
+  - Kanban board for tasks (exists)
+  - Table views for lists
+  - Calendar views for attendance/leave
+  - Gantt/timeline for projects
+
+RAG RESPONSE UI:
+  - NOT APPLICABLE (no RAG/LLM in this project)
+
+ENVIRONMENT CONFIGURATION:
+  - Development: VITE_API_BASE_URL not needed (proxy handles it)
+  - Production: Set VITE_API_BASE_URL to backend URL (e.g., https://workhive-backend.onrender.com/api)
+  - TypeScript path alias: @ → src/
+  - TailwindCSS configured with brand colors and custom fonts
+
+==================================================
+20. ANTIGRAVITY HANDOFF
+==================================================
+
+WHAT THE EXISTING PROJECT DOES:
+  WorkHive is a production-grade, multi-tenant B2B SaaS workspace platform built with
+  Spring Boot 3.2.5 (Java 21) backend and React 18 + TypeScript frontend. It provides
+  comprehensive workspace management: authentication, user/team/department management,
+  project management with milestones, task management with Kanban and review workflow,
+  attendance tracking, leave management, document storage (MinIO), announcements,
+  notifications (in-app + WebSocket), global search, reporting with PDF/CSV/XLSX exports,
+  integrations (GitHub, Jira, GitLab, Slack, Gmail), activity feed, and admin tools
+  (archive, action center, settings). The frontend is a complete SPA with 20+ pages.
+
+WHAT MUST REMAIN UNCHANGED:
+  - All backend API endpoints, paths, request/response contracts
+  - JWT authentication flow (access + refresh tokens)
+  - Tenant isolation pattern (TenantContext from JWT)
+  - Database schema (use new Flyway migrations for changes)
+  - Spring Security configuration (public endpoints, CORS)
+  - WebSocket configuration (STOMP at /ws)
+  - Environment variable names and defaults
+  - Docker Compose service definitions
+  - Existing frontend API client (api/client.ts) and services (api/services.ts)
+
+WHAT THE FRONTEND SHOULD CONNECT TO:
+  - REST API at http://localhost:8080/api (dev) or ${VITE_API_BASE_URL} (prod)
+  - WebSocket at /ws (SockJS/STOMP)
+  - All endpoints documented in Section 6
+
+WHICH APIS SHOULD BE USED:
+  - Use the existing API service functions in frontend/src/api/services.ts
+  - These cover ALL available backend endpoints
+  - For new endpoints, add functions to services.ts following the same pattern
+
+WHAT ANTIGRAVITY SHOULD INSPECT BEFORE CODING:
+  1. frontend/src/api/services.ts — All available API functions
+  2. frontend/src/api/client.ts — Axios setup, auth interceptor
+  3. frontend/src/types/index.ts — TypeScript type definitions
+  4. frontend/src/store/authStore.ts — Authentication state management
+  5. frontend/src/App.tsx — Routing structure and route guards
+  6. backend SecurityConfig.java — CORS and security rules
+  7. backend AuthDtos.java — Auth request/response shapes
+  8. backend GlobalExceptionHandler.java — Error response formats
+  9. docker-compose.yml — Required services and ports
+  10. application.yml — Backend configuration and defaults
+
+WHAT ANTIGRAVITY SHOULD NOT ASSUME:
+  - Do NOT assume any LLM, AI, vector search, or RAG functionality exists (it doesn't)
+  - Do NOT assume the backend accepts tenant IDs from request bodies (they come from JWT only)
+  - Do NOT assume session-based auth (it's stateless JWT)
+  - Do NOT assume the frontend is empty (it has 20+ complete pages)
+  - Do NOT assume GraphQL (it's REST only)
+  - Do NOT assume the backend uses DTOs for ALL responses (many return JPA entities directly)
+  - Do NOT assume pagination is one-indexed (it's zero-indexed)
+  - Do NOT modify existing Flyway migration files (create new ones)
+
+THE SAFEST ORDER TO IMPLEMENT FRONTEND CHANGES:
+  1. Read and understand existing frontend code (App.tsx, services.ts, types/index.ts)
+  2. Verify backend is running and APIs are reachable
+  3. Make changes to existing pages or add new pages in frontend/src/pages/
+  4. Use existing API service functions (services.ts) — do not create a parallel API layer
+  5. Use existing type definitions (types/index.ts) — extend, don't duplicate
+  6. Use existing auth store (authStore.ts) — integrate with it
+  7. Follow existing patterns (TanStack React Query, Zustand, TailwindCSS)
+  8. Test against running backend (docker compose up or manual start)
+  9. Verify all existing pages still work after changes
+  10. Run build (pnpm build) to verify TypeScript compilation
+
+==================================================
+END OF PROJECT CONTEXT
+==================================================

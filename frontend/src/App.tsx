@@ -27,6 +27,8 @@ import { TeamsPage } from './pages/teams/TeamsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { ArchivePage } from './pages/archive/ArchivePage';
+import { UnitLiveRosterPage } from './features/workforce-analytics/UnitLiveRosterPage';
+import { Employee360Dashboard } from './features/workforce-analytics/Employee360Dashboard';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
@@ -104,11 +106,35 @@ export const App: React.FC = () => {
             }
           />
           <Route
+            path="/departments/:id/members"
+            element={
+              <AdminRoute>
+                <UnitLiveRosterPage unitType="DEPARTMENT" />
+              </AdminRoute>
+            }
+          />
+          <Route
             path="/teams"
             element={
               <AdminRoute>
                 <TeamsPage />
               </AdminRoute>
+            }
+          />
+          <Route
+            path="/teams/:id/members"
+            element={
+              <AdminRoute>
+                <UnitLiveRosterPage unitType="TEAM" />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/employees/:userId/360"
+            element={
+              <ProtectedRoute>
+                <Employee360Dashboard />
+              </ProtectedRoute>
             }
           />
           <Route
