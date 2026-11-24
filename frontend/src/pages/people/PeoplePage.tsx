@@ -74,6 +74,8 @@ export const PeoplePage: React.FC = () => {
   const [userToDeletePermanently, setUserToDeletePermanently] = useState<any | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  const [downloadingExcelId, setDownloadingExcelId] = useState<string | null>(null);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
@@ -94,8 +96,16 @@ export const PeoplePage: React.FC = () => {
   const { user: currentUser } = useAuthStore();
   const queryClient = useQueryClient();
 
-  const handleDownloadReport = async (userId: string, userName: string) => {
-    setDownloadingReport(true);
+  const { data: presenceRes } = useQuery({
+    queryKey: ['users-presence'],
+    queryFn: () => userApi.getPresence(),
+    refetchInterval: 12000,
+  });
+  const presenceMap = presenceRes?.data || {};
+
+  const handleDownloadPdf = async (userId: string, userName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDownloadingPdfId(userId);
     try {
       const res = await exportApi.employeePdf(userId);
       const blob = new Blob([res.data], { type: 'application/pdf' });
@@ -106,11 +116,37 @@ export const PeoplePage: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert(`Failed to download report: ${err.response?.data?.message || err.message}`);
+      alert(`Failed to download PDF report: ${err.response?.data?.message || err.message}`);
     } finally {
-      setDownloadingReport(false);
+      setDownloadingPdfId(null);
     }
+  };
+
+  const handleDownloadExcel = async (userId: string, userName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDownloadingExcelId(userId);
+    try {
+      const res = await exportApi.employeeXlsx(userId);
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `employee-report-${userName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Failed to download Excel report: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setDownloadingExcelId(null);
+    }
+  };
+
+  const handleDownloadReport = async (userId: string, userName: string) => {
+    await handleDownloadPdf(userId, userName);
   };
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
@@ -462,16 +498,43 @@ export const PeoplePage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-lg font-bold border ${
-                        u.status === 'ACTIVE'
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                      }`}>
-                        {u.status || 'ACTIVE'}
-                      </span>
+                      {u.status === 'INACTIVE' ? (
+                        <span className="text-xs px-2.5 py-1 rounded-lg font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                          Deactivated
+                        </span>
+                      ) : presenceMap[u.id] === 'ONLINE' ? (
+                        <span className="text-xs px-2.5 py-1 rounded-lg font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          ● Online
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700/60 inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                          ● Offline
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right min-w-[340px] whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                        <button
+                          onClick={(e) => handleDownloadPdf(u.id, u.fullName, e)}
+                          disabled={downloadingPdfId === u.id}
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-indigo-500/20 shrink-0"
+                          title="Download Employee PDF Dossier"
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>{downloadingPdfId === u.id ? 'PDF...' : 'PDF'}</span>
+                        </button>
+                        <button
+                          onClick={(e) => handleDownloadExcel(u.id, u.fullName, e)}
+                          disabled={downloadingExcelId === u.id}
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition-colors inline-flex items-center gap-1 border border-emerald-500/20 shrink-0"
+                          title="Download Employee Excel (.xlsx) Report"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>{downloadingExcelId === u.id ? 'Excel...' : 'Excel'}</span>
+                        </button>
                         <button
                           onClick={(e) => handleOpenEdit(u, e)}
                           className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors inline-flex items-center gap-1 shrink-0"

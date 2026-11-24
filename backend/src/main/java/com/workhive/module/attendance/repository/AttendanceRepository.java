@@ -38,6 +38,9 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     @Query("SELECT COUNT(a) FROM Attendance a WHERE a.tenantId = :tenantId AND a.date = :date AND a.status = 'CHECKED_IN' AND a.checkOut IS NULL")
     long countCurrentlyCheckedIn(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date);
 
+    @Query("SELECT DISTINCT a.userId FROM Attendance a WHERE a.tenantId = :tenantId AND a.date = :date AND a.status = 'CHECKED_IN' AND a.checkOut IS NULL")
+    List<UUID> findActiveUserIdsToday(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date);
+
     @Query("SELECT COUNT(DISTINCT a.userId) FROM Attendance a WHERE a.tenantId = :tenantId AND a.date = :date")
     long countPresentToday(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date);
 }

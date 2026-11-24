@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { reportApi } from '../../api/services';
+import { reportApi, userApi } from '../../api/services';
 import api from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
 import { StatCard } from '../../components/common/StatCard';
@@ -22,6 +22,14 @@ export const ReportsPage: React.FC = () => {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'TENANT_ADMIN' || user?.role === 'MANAGER';
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+
+  const { data: usersData } = useQuery({
+    queryKey: ['active-users-for-reports'],
+    queryFn: () => userApi.getActive(),
+    enabled: isAdmin,
+  });
+  const users = usersData?.data || [];
 
   const { data: empReportData, isLoading: empLoading } = useQuery({
     queryKey: ['my-work-report'],
@@ -102,6 +110,74 @@ export const ReportsPage: React.FC = () => {
             <FileDown className="w-4 h-4 text-rose-400" />
             <span>{downloading === 'pdf' ? 'Exporting PDF...' : 'Report PDF'}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Individual Employee Export Card */}
+      <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 bg-gradient-to-br from-slate-900/90 to-slate-900/50">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileDown className="w-5 h-5 text-indigo-400" />
+              <h2 className="text-lg font-bold font-display text-white">Individual Employee Export</h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Generate comprehensive 360° dossiers and audit reports in PDF or multi-sheet Excel (.xlsx) format.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {isAdmin && (
+              <select
+                value={selectedUserId || user?.id || ''}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value={user?.id}>Myself ({user?.fullName})</option>
+                {users
+                  .filter((u: any) => u.id !== user?.id)
+                  .map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.fullName} ({u.employeeCode || u.email})
+                    </option>
+                  ))}
+              </select>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const targetId = selectedUserId || user?.id || '';
+                  downloadFile(
+                    `/exports/employee/pdf${targetId ? `?userId=${targetId}` : ''}`,
+                    `employee-dossier-${new Date().toISOString().slice(0, 10)}.pdf`,
+                    'emp-pdf'
+                  );
+                }}
+                disabled={downloading === 'emp-pdf'}
+                className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 shadow-lg shadow-indigo-600/20"
+              >
+                <FileText className="w-4 h-4" />
+                <span>{downloading === 'emp-pdf' ? 'Generating PDF...' : 'Download PDF'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const targetId = selectedUserId || user?.id || '';
+                  downloadFile(
+                    `/exports/employee/xlsx${targetId ? `?userId=${targetId}` : ''}`,
+                    `employee-report-${new Date().toISOString().slice(0, 10)}.xlsx`,
+                    'emp-xlsx'
+                  );
+                }}
+                disabled={downloading === 'emp-xlsx'}
+                className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 shadow-lg shadow-emerald-600/20"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>{downloading === 'emp-xlsx' ? 'Generating XLSX...' : 'Download Excel'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

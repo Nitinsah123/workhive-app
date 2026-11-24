@@ -31,6 +31,9 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.workhive.module.attendance.repository.AttendanceRepository attendanceRepository;
+
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
 
@@ -53,6 +56,27 @@ public class UserService {
     public Page<User> getUsers(Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
         return userRepository.findByTenantIdAndStatusNot(tenantId, "ARCHIVED", pageable);
+    }
+
+    public java.util.Map<String, String> getUsersPresence() {
+        UUID tenantId = TenantContext.requireTenantId();
+        java.util.Set<UUID> activeSet = java.util.Collections.emptySet();
+        if (attendanceRepository != null) {
+            activeSet = new java.util.HashSet<>(attendanceRepository.findActiveUserIdsToday(tenantId, java.time.LocalDate.now()));
+        }
+
+        List<User> users = userRepository.findByTenantIdAndStatusNot(tenantId, "ARCHIVED", Pageable.unpaged()).getContent();
+        java.util.Map<String, String> presenceMap = new java.util.HashMap<>();
+        for (User u : users) {
+            if ("DEACTIVATED".equalsIgnoreCase(u.getStatus())) {
+                presenceMap.put(u.getId().toString(), "DEACTIVATED");
+            } else if (activeSet.contains(u.getId())) {
+                presenceMap.put(u.getId().toString(), "ONLINE");
+            } else {
+                presenceMap.put(u.getId().toString(), "OFFLINE");
+            }
+        }
+        return presenceMap;
     }
 
     public List<User> getArchivedUsers() {

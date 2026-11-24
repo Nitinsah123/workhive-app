@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { useUIStore } from '../../store/uiStore';
 import {
   LayoutDashboard,
   Inbox,
@@ -20,14 +21,22 @@ import {
   Briefcase,
   UserCheck,
   Archive,
+  X,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const { user, tenant } = useAuthStore();
+  const { sidebarOpen, setSidebarOpen } = useUIStore();
   const role = user?.role;
 
   const isAdmin = role === 'TENANT_ADMIN';
   const isManager = role === 'MANAGER';
+
+  const handleLinkClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
 
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -60,77 +69,104 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800/80 flex flex-col h-screen fixed left-0 top-0 z-30 select-none">
-      {/* Brand Header */}
-      <div className="h-16 px-5 flex items-center gap-3 border-b border-slate-800/80 bg-slate-900/50">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-indigo-500/20">
-          W
-        </div>
-        <div className="flex flex-col overflow-hidden">
-          <span className="font-display font-bold text-base tracking-tight text-white flex items-center gap-1.5">
-            WorkHive
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
-              SaaS
-            </span>
-          </span>
-          <span className="text-xs text-slate-400 truncate font-medium">
-            {tenant?.name || 'Workspace'}
-          </span>
-        </div>
-      </div>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-30 lg:hidden transition-opacity"
+          aria-hidden="true"
+        />
+      )}
 
-      {/* Navigation Links */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`
-              }
-            >
-              <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
-              </div>
-              {item.badge && (
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {item.badge}
+      <aside
+        className={`w-64 bg-slate-900 border-r border-slate-800/80 flex flex-col h-screen fixed left-0 top-0 z-40 select-none transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="h-16 px-5 flex items-center justify-between border-b border-slate-800/80 bg-slate-900/50">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-indigo-500/20 shrink-0">
+              W
+            </div>
+            <div className="flex flex-col overflow-hidden min-w-0">
+              <span className="font-display font-bold text-base tracking-tight text-white flex items-center gap-1.5">
+                WorkHive
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+                  SaaS
                 </span>
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
+              </span>
+              <span className="text-xs text-slate-400 truncate font-medium">
+                {tenant?.name || 'Workspace'}
+              </span>
+            </div>
+          </div>
 
-      {/* Current User Pill */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-900/50">
-        <NavLink
-          to="/profile"
-          className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/70 transition-colors"
-        >
-          <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-indigo-400 font-bold text-sm">
-            {user?.fullName?.charAt(0) || 'U'}
-          </div>
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-sm font-semibold text-slate-200 truncate">
-              {user?.fullName}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden transition-colors"
+            title="Close navigation"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Navigation Links */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={handleLinkClick}
+                className={({ isActive }) =>
+                  `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`
+                }
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </div>
+                {item.badge && (
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {item.badge}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* Current User Pill */}
+        <div className="p-3 border-t border-slate-800/80 bg-slate-900/50">
+          <NavLink
+            to="/profile"
+            onClick={handleLinkClick}
+            className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/70 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-indigo-400 font-bold text-sm">
+              {user?.fullName?.charAt(0) || 'U'}
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-semibold text-slate-200 truncate">
+                {user?.fullName}
+              </span>
+              <span className="text-xs text-indigo-400 font-mono truncate">
+                {user?.employeeCode}
+              </span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+              {user?.role === 'TENANT_ADMIN' ? 'Admin' : user?.role === 'MANAGER' ? 'Manager' : 'Emp'}
             </span>
-            <span className="text-xs text-indigo-400 font-mono truncate">
-              {user?.employeeCode}
-            </span>
-          </div>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-            {user?.role === 'TENANT_ADMIN' ? 'Admin' : user?.role === 'MANAGER' ? 'Manager' : 'Emp'}
-          </span>
-        </NavLink>
-      </div>
-    </aside>
+          </NavLink>
+        </div>
+      </aside>
+    </>
   );
 };

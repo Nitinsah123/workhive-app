@@ -51,6 +51,7 @@ export const userApi = {
   resendInvitation: (id: string) => api.post<any>(`/invitations/${id}/resend`),
   revokeInvitation: (id: string) => api.delete(`/invitations/${id}`),
   acceptInvitation: (data: any) => api.post<AuthResponse>('/invitations/accept', data),
+  getPresence: () => api.get<Record<string, string>>('/users/presence'),
 };
 
 export const archiveApi = {
@@ -208,6 +209,7 @@ export const exportApi = {
   leaveCsv: () => api.get('/exports/leave/csv', { responseType: 'blob' }),
   activityCsv: () => api.get('/exports/activity/csv', { responseType: 'blob' }),
   employeePdf: (userId?: string) => api.get(`/exports/employee/pdf${userId ? `?userId=${userId}` : ''}`, { responseType: 'blob' }),
+  employeeXlsx: (userId?: string) => api.get(`/exports/employee/xlsx${userId ? `?userId=${userId}` : ''}`, { responseType: 'blob' }),
   projectPdf: (projectId: string) => api.get(`/exports/project/${projectId}/pdf`, { responseType: 'blob' }),
   orgPdf: () => api.get('/exports/organization/pdf', { responseType: 'blob' }),
 };

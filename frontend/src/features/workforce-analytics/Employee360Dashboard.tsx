@@ -25,6 +25,8 @@ import {
   FolderGit2,
   Search,
   History,
+  Download,
+  FileText,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -46,6 +48,7 @@ import {
   Area,
 } from 'recharts';
 import api from '../../api/client';
+import { exportApi } from '../../api/services';
 import { Employee360DashboardDTO } from './types';
 import { useActivityStream } from './useActivityStream';
 
@@ -58,6 +61,50 @@ export const Employee360Dashboard: React.FC = () => {
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE'>('ALL');
   const [hourlySeriesFilter, setHourlySeriesFilter] = useState<'ALL' | 'ACTIVE' | 'IDLE'>('ALL');
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!userId) return;
+    setDownloadingPdf(true);
+    try {
+      const res = await exportApi.employeePdf(userId);
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `employee-report-${(dashboard?.fullName || 'employee').toLowerCase().replace(/[^a-z0-9]/g, '-')}-${new Date().toISOString().slice(0, 10)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Failed to download PDF: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    if (!userId) return;
+    setDownloadingExcel(true);
+    try {
+      const res = await exportApi.employeeXlsx(userId);
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `employee-report-${(dashboard?.fullName || 'employee').toLowerCase().replace(/[^a-z0-9]/g, '-')}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Failed to download Excel: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
 
   // SSE real-time stream listener for this employee
   const { isConnected, lastEvent, events } = useActivityStream(userId);
@@ -192,7 +239,27 @@ export const Employee360Dashboard: React.FC = () => {
           <span>Back to Roster</span>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-indigo-200 text-xs font-bold transition-all border border-indigo-500/20 shadow-sm disabled:opacity-50"
+            title="Download Employee PDF Dossier"
+          >
+            <FileText className="w-3.5 h-3.5 text-indigo-400" />
+            <span>{downloadingPdf ? 'Exporting PDF...' : 'Download PDF'}</span>
+          </button>
+
+          <button
+            onClick={handleDownloadExcel}
+            disabled={downloadingExcel}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-emerald-200 text-xs font-bold transition-all border border-emerald-500/20 shadow-sm disabled:opacity-50"
+            title="Download Employee Excel (.xlsx) Report"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{downloadingExcel ? 'Exporting Excel...' : 'Download Excel'}</span>
+          </button>
+
           <div
             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
               isConnected

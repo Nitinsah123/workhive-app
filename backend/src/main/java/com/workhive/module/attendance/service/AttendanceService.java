@@ -110,6 +110,48 @@ public class AttendanceService {
     }
 
     /**
+     * Automatically close active check-in session on user logout, calculate duration, and set status OFFLINE.
+     */
+    @Transactional
+    public void autoCheckOutOnLogout(UUID tenantId, UUID userId) {
+        try {
+            LocalDate today = LocalDate.now();
+            Optional<Attendance> activeSession = attendanceRepository
+                    .findFirstByTenantIdAndUserIdAndDateAndCheckOutIsNullOrderByCreatedAtDesc(tenantId, userId, today);
+
+            if (activeSession.isPresent()) {
+                Attendance attendance = activeSession.get();
+                Instant checkOutTime = Instant.now();
+                int durationMinutes = (int) Math.max(0, Duration.between(attendance.getCheckIn(), checkOutTime).toMinutes());
+
+                attendance.setCheckOut(checkOutTime);
+                attendance.setDurationMinutes(durationMinutes);
+                attendance.setStatus("CHECKED_OUT");
+                String note = "Auto checked out on logout";
+                attendance.setNotes(attendance.getNotes() != null ? attendance.getNotes() + " | " + note : note);
+                attendanceRepository.save(attendance);
+
+                workActivityService.recordActivity(tenantId, userId, null, null, "WORKHIVE", "ATTENDANCE_CHECKOUT",
+                        "Auto checked out on logout (" + (durationMinutes / 60) + "h " + (durationMinutes % 60) + "m)", null, null, null);
+
+                if (activityStreamService != null) {
+                    try {
+                        activityStreamService.publishActivity(tenantId, userId, null, null,
+                                "PRESENCE_CHANGED", "User logged out - status OFFLINE", "{\"presenceStatus\":\"OFFLINE\"}");
+                    } catch (Exception ignored) {}
+                }
+                log.info("Auto checked out user {} for tenant {} on logout", userId, tenantId);
+            }
+        } catch (Exception e) {
+            log.warn("Auto check-out on logout failed for user {}: {}", userId, e.getMessage());
+        }
+    }
+
+    public List<UUID> getActiveUserIdsToday(UUID tenantId) {
+        return attendanceRepository.findActiveUserIdsToday(tenantId, LocalDate.now());
+    }
+
+    /**
      * Close the current active check-in session, calculate elapsed minutes, and mark COMPLETED / CHECKED_OUT.
      */
     @Transactional

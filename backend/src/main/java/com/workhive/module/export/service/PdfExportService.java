@@ -6,7 +6,9 @@ import com.workhive.common.exception.ResourceNotFoundException;
 import com.workhive.module.attendance.entity.Attendance;
 import com.workhive.module.attendance.repository.AttendanceRepository;
 import com.workhive.module.leave.entity.LeaveBalance;
+import com.workhive.module.leave.entity.LeaveType;
 import com.workhive.module.leave.repository.LeaveBalanceRepository;
+import com.workhive.module.leave.repository.LeaveTypeRepository;
 import com.workhive.module.project.entity.Milestone;
 import com.workhive.module.project.entity.Project;
 import com.workhive.module.project.repository.MilestoneRepository;
@@ -63,6 +65,7 @@ public class PdfExportService {
     private final WorkActivityRepository workActivityRepository;
     private final TimeEntryRepository timeEntryRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final LeaveTypeRepository leaveTypeRepository;
 
     private static final Color BRAND_PRIMARY = new Color(79, 70, 229);    // Indigo-600 #4F46E5
     private static final Color BRAND_DARK = new Color(15, 23, 42);        // Slate-900 #0F172A
@@ -86,7 +89,8 @@ public class PdfExportService {
                             @Autowired(required = false) ProjectMemberRepository projectMemberRepository,
                             @Autowired(required = false) WorkActivityRepository workActivityRepository,
                             @Autowired(required = false) TimeEntryRepository timeEntryRepository,
-                            @Autowired(required = false) LeaveRequestRepository leaveRequestRepository) {
+                            @Autowired(required = false) LeaveRequestRepository leaveRequestRepository,
+                            @Autowired(required = false) LeaveTypeRepository leaveTypeRepository) {
         this.reportService = reportService;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
@@ -101,6 +105,7 @@ public class PdfExportService {
         this.workActivityRepository = workActivityRepository;
         this.timeEntryRepository = timeEntryRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.leaveTypeRepository = leaveTypeRepository;
     }
 
     public PdfExportService(ReportService reportService,
@@ -113,7 +118,7 @@ public class PdfExportService {
                             LeaveBalanceRepository leaveBalanceRepository) {
         this(reportService, tenantRepository, userRepository, projectRepository, taskRepository,
                 milestoneRepository, attendanceRepository, leaveBalanceRepository,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     public byte[] generateEmployeeReportPdf(UUID targetUserId) throws Exception {
@@ -153,8 +158,13 @@ public class PdfExportService {
                 ? teamRepository.findById(user.getTeamId()).map(Team::getName).orElse("—")
                 : "—";
         String managerName = (user.getManagerId() != null)
-                ? userRepository.findById(user.getManagerId()).map(User::getFullName).orElse("—")
-                : "—";
+                ? userRepository.findById(user.getManagerId()).map(User::getFullName).filter(s -> !s.isBlank()).orElse("N/A")
+                : "N/A";
+
+        // Leave Types Map
+        java.util.Map<UUID, String> typeMap = (leaveTypeRepository != null)
+                ? leaveTypeRepository.findByTenantId(tenantId).stream().collect(java.util.stream.Collectors.toMap(LeaveType::getId, LeaveType::getName, (a, b) -> a))
+                : java.util.Map.of();
 
         // Projects
         List<ProjectMember> memberships = (projectMemberRepository != null)
@@ -165,10 +175,13 @@ public class PdfExportService {
                 ? projectRepository.findAllById(projectIds)
                 : List.of();
 
-        // Time tracking
+        // Time tracking & attendance duration
+        long totalAttMins = attendances.stream().mapToLong(a -> a.getDurationMinutes() != null ? a.getDurationMinutes() : 0).sum();
         long totalLoggedMinutes = (timeEntryRepository != null)
                 ? timeEntryRepository.sumDurationByUserIdSince(tenantId, effectiveUserId, Instant.EPOCH)
                 : (report != null ? report.getTotalTimeLoggedMinutes() : 0);
+        long effectiveLoggedMinutes = Math.max(totalLoggedMinutes, totalAttMins);
+
         List<TimeEntry> recentTimeEntries = (timeEntryRepository != null)
                 ? timeEntryRepository.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, effectiveUserId, PageRequest.of(0, 5)).getContent()
                 : List.of();
@@ -197,9 +210,12 @@ public class PdfExportService {
         infoTable.setSpacingBefore(12);
         infoTable.setSpacingAfter(14);
 
+        String displayRole = "TENANT_ADMIN".equalsIgnoreCase(user.getRole()) ? "Admin" :
+                "MANAGER".equalsIgnoreCase(user.getRole()) ? "Manager" : "Employee";
+
         addInfoCell(infoTable, "Employee Name", user.getFullName());
         addInfoCell(infoTable, "Employee Code", user.getEmployeeCode() != null ? user.getEmployeeCode() : "N/A");
-        addInfoCell(infoTable, "Role", user.getRole());
+        addInfoCell(infoTable, "Role", displayRole);
         addInfoCell(infoTable, "Status", user.getStatus() != null ? user.getStatus() : "ACTIVE");
 
         addInfoCell(infoTable, "Work Email", user.getEmail());
@@ -225,7 +241,7 @@ public class PdfExportService {
         addStatCard(statsTable, "Assigned Tasks", String.valueOf(tasks.size()), BRAND_PRIMARY);
         addStatCard(statsTable, "Completed Tasks", String.valueOf(completedTasks), SUCCESS_GREEN);
         addStatCard(statsTable, "Completion Rate", String.format("%.1f%%", compRate), BRAND_PRIMARY);
-        addStatCard(statsTable, "Hours Logged", String.format("%.1f hrs", totalLoggedMinutes / 60.0), WARNING_AMBER);
+        addStatCard(statsTable, "Hours Logged", String.format("%.1f hrs", effectiveLoggedMinutes / 60.0), WARNING_AMBER);
         document.add(statsTable);
 
         // 4. Project Assignments Section
@@ -276,7 +292,6 @@ public class PdfExportService {
         Paragraph attTitle = new Paragraph("30-Day Attendance Record:", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, BRAND_DARK));
         attLeft.addElement(attTitle);
         attLeft.addElement(new Paragraph(" • Days Recorded: " + attendances.size(), FontFactory.getFont(FontFactory.HELVETICA, 8, BRAND_GRAY)));
-        long totalAttMins = attendances.stream().mapToLong(a -> a.getDurationMinutes() != null ? a.getDurationMinutes() : 0).sum();
         attLeft.addElement(new Paragraph(String.format(" • Total Recorded Duration: %.1f hours", totalAttMins / 60.0), FontFactory.getFont(FontFactory.HELVETICA, 8, BRAND_GRAY)));
         attTable.addCell(attLeft);
 
@@ -306,7 +321,8 @@ public class PdfExportService {
         Paragraph lbTitle = new Paragraph("Leave Balances:", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, BRAND_DARK));
         leaveLeft.addElement(lbTitle);
         for (LeaveBalance lb : leaveBalances) {
-            leaveLeft.addElement(new Paragraph(" • Total: " + lb.getTotal() + " days | Used: " + lb.getUsed() + " | Remaining: " + lb.getRemaining() + " days",
+            String typeName = lb.getLeaveTypeId() != null ? typeMap.getOrDefault(lb.getLeaveTypeId(), "Leave") : "Annual Leave";
+            leaveLeft.addElement(new Paragraph(" • " + typeName + ": Total " + lb.getTotal() + " days | Used: " + lb.getUsed() + " | Remaining: " + lb.getRemaining() + " days",
                     FontFactory.getFont(FontFactory.HELVETICA, 8, BRAND_GRAY)));
         }
         if (leaveBalances.isEmpty()) {

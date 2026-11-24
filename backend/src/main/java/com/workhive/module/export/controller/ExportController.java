@@ -68,6 +68,15 @@ public class ExportController {
                 .body(pdf);
     }
 
+    @GetMapping({"/employee/xlsx", "/employee/excel", "/xlsx/employee"})
+    public ResponseEntity<byte[]> exportEmployeeReportXlsx(@RequestParam(required = false) UUID userId) throws Exception {
+        byte[] xlsx = exportService.exportEmployeeReportXlsx(userId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=employee-report-" + LocalDate.now() + ".xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(xlsx);
+    }
+
     @GetMapping({"/project/{projectId}/pdf", "/pdf/project/{projectId}"})
     public ResponseEntity<byte[]> exportProjectReportPdf(@PathVariable UUID projectId) throws Exception {
         byte[] pdf = pdfExportService.generateProjectReportPdf(projectId);

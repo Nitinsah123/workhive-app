@@ -275,6 +275,20 @@ public class AuthService {
 
     @Transactional
     public void logout(UUID userId) {
+        try {
+            UUID tenantId = com.workhive.security.TenantContext.getTenantId();
+            if (tenantId == null) {
+                userRepository.findById(userId).ifPresent(u -> {
+                    if (attendanceService != null) {
+                        attendanceService.autoCheckOutOnLogout(u.getTenantId(), userId);
+                    }
+                });
+            } else if (attendanceService != null) {
+                attendanceService.autoCheckOutOnLogout(tenantId, userId);
+            }
+        } catch (Exception e) {
+            log.warn("Auto checkout on logout failed for user {}: {}", userId, e.getMessage());
+        }
         refreshTokenRepository.revokeAllByUserId(userId);
     }
 

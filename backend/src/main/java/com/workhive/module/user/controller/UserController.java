@@ -32,6 +32,11 @@ public class UserController {
         return ResponseEntity.ok(userService.getUsers(PageRequest.of(page, size)));
     }
 
+    @GetMapping("/presence")
+    public ResponseEntity<Map<String, String>> getUsersPresence() {
+        return ResponseEntity.ok(userService.getUsersPresence());
+    }
+
     @GetMapping("/active")
     public ResponseEntity<List<User>> getActiveUsers() {
         return ResponseEntity.ok(userService.getActiveUsers());
