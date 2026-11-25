@@ -328,7 +328,7 @@ export const GlobalSearchModal: React.FC = () => {
                           <div className="space-y-0.5">
                             <span className="text-sm font-semibold text-white block">{t.title}</span>
                             <span className="text-xs text-slate-400 block">
-                              Priority: <strong className="text-slate-300">{t.priority || 'MEDIUM'}</strong> • Due: {t.dueDate || 'No deadline'}
+                              Assigned to: <strong className="text-slate-300">{t.assigneeName || 'Unassigned'}</strong> • Assigned by: <strong className="text-slate-300">{t.creatorName || 'System'}</strong> • Priority: <strong className="text-slate-300">{t.priority || 'MEDIUM'}</strong>
                             </span>
                           </div>
                           <div className="flex items-center gap-2">

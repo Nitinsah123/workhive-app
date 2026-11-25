@@ -75,5 +75,29 @@ public class Task {
     @Column(name = "updated_at", nullable = false) @Builder.Default
     private Instant updatedAt = Instant.now();
 
+    @Transient
+    private String assigneeName;
+
+    @Transient
+    private String assigneeEmployeeCode;
+
+    @Transient
+    private String assigneeAvatarUrl;
+
+    @Transient
+    private String creatorName;
+
+    @Transient
+    private String creatorEmployeeCode;
+
+    @Transient
+    private String creatorAvatarUrl;
+
+    @Transient
+    private String reviewerName;
+
+    @Transient
+    private String projectName;
+
     @PreUpdate protected void onUpdate() { this.updatedAt = Instant.now(); }
 }

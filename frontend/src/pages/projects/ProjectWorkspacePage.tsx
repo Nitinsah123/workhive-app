@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectApi, taskApi, userApi, departmentApi, teamApi } from '../../api/services';
+import { useAuthStore } from '../../store/authStore';
 import { Modal } from '../../components/common/Modal';
+import { UserAvatar, formatSystemRole } from '../../components/common/UserAvatarBadge';
 import {
   FolderKanban,
   CheckSquare,
@@ -23,6 +25,9 @@ import {
 
 export const ProjectWorkspacePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { user: currentUser } = useAuthStore();
+  const isPrivileged = currentUser?.role === 'TENANT_ADMIN' || currentUser?.role === 'MANAGER';
+  const [taskScope, setTaskScope] = useState<'ALL' | 'MINE'>('ALL');
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TASKS' | 'TEAM' | 'MILESTONES'>('OVERVIEW');
   const [createTaskModal, setCreateTaskModal] = useState(false);
   const [createMilestoneModal, setCreateMilestoneModal] = useState(false);
@@ -73,9 +78,15 @@ export const ProjectWorkspacePage: React.FC = () => {
     queryFn: () => teamApi.getAll(),
   });
 
+  const effectiveScope = isPrivileged ? taskScope : 'MINE';
+
   const { data: tasksData } = useQuery({
-    queryKey: ['project-tasks', id],
-    queryFn: () => taskApi.getAll(id),
+    queryKey: ['project-tasks', id, effectiveScope],
+    queryFn: () =>
+      projectApi.getTasks(
+        id!,
+        isPrivileged && taskScope === 'MINE' ? currentUser?.id : undefined
+      ),
     enabled: !!id,
   });
 
@@ -332,11 +343,16 @@ export const ProjectWorkspacePage: React.FC = () => {
                     <div
                       key={t.id}
                       onClick={() => navigate(`/tasks?taskId=${t.id}`)}
-                      className="p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/60 cursor-pointer transition-all flex items-center justify-between group"
+                      className="p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/60 cursor-pointer transition-all flex items-center justify-between gap-3 group"
                       title="Click to open task in Kanban"
                     >
-                      <span className="text-sm font-semibold text-slate-200 group-hover:text-indigo-300 transition-colors">{t.title}</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 group-hover:bg-indigo-500/10 group-hover:text-indigo-400 transition-colors">{t.status}</span>
+                      <div className="min-w-0">
+                        <span className="text-sm font-semibold text-slate-200 group-hover:text-indigo-300 transition-colors block truncate">{t.title}</span>
+                        <span className="text-[11px] text-slate-400 block truncate mt-0.5">
+                          Assigned to: <strong className="text-slate-200">{t.assigneeName || 'Unassigned'}</strong> • Assigned by: <strong className="text-slate-300">{t.creatorName || 'System'}</strong>
+                        </span>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 group-hover:bg-indigo-500/10 group-hover:text-indigo-400 transition-colors shrink-0">{t.status}</span>
                     </div>
                   ))}
                 </div>
@@ -374,20 +390,46 @@ export const ProjectWorkspacePage: React.FC = () => {
       {/* TAB CONTENT: TASKS */}
       {activeTab === 'TASKS' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-3">
             <h3 className="text-lg font-bold font-display text-white">Project Tasks</h3>
-            <button
-              onClick={() => setCreateTaskModal(true)}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" /> Add Task
-            </button>
+            <div className="flex items-center gap-3">
+              {isPrivileged && (
+                <div className="p-1 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-1">
+                  <button
+                    onClick={() => setTaskScope('ALL')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      taskScope === 'ALL'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    All Team Tasks
+                  </button>
+                  <button
+                    onClick={() => setTaskScope('MINE')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      taskScope === 'MINE'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    My Tasks
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setCreateTaskModal(true)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" /> Add Task
+              </button>
+            </div>
           </div>
 
           {tasks.length === 0 ? (
             <div className="glass-panel p-12 text-center rounded-3xl">
               <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-2" />
-              <p className="text-sm text-slate-400">No tasks created yet for this project.</p>
+              <p className="text-sm text-slate-400">No tasks assigned or created yet for this view.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -395,16 +437,39 @@ export const ProjectWorkspacePage: React.FC = () => {
                 <div
                   key={task.id}
                   onClick={() => navigate(`/tasks?taskId=${task.id}`)}
-                  className="glass-panel p-5 rounded-2xl border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/40 cursor-pointer transition-all flex items-center justify-between group"
+                  className="glass-panel p-5 rounded-2xl border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/40 cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
                   title="Click to view full task workflow and details"
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-2 min-w-0">
                     <div className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">{task.title}</div>
-                    <div className="text-xs text-slate-400">{task.description}</div>
+                    {task.description && (
+                      <div className="text-xs text-slate-400 line-clamp-2">{task.description}</div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-1">
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <UserAvatar name={task.assigneeName} avatarUrl={task.assigneeAvatarUrl} size="xs" fallback="U" />
+                        <span className="text-slate-400">Assigned to:</span>
+                        <strong className="text-white font-semibold">{task.assigneeName || 'Unassigned'}</strong>
+                        {task.assigneeEmployeeCode && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-indigo-400 border border-slate-700">
+                            {task.assigneeEmployeeCode}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-slate-400">
+                        Assigned by:{' '}
+                        <strong className="text-slate-200 font-semibold">{task.creatorName || 'System'}</strong>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-indigo-400 font-semibold border border-slate-700">
-                    {task.status}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] font-mono px-2 py-1 rounded-lg bg-slate-900 text-slate-300 border border-slate-800">
+                      {task.priority}
+                    </span>
+                    <span className="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-indigo-400 font-semibold border border-slate-700">
+                      {task.status}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -428,21 +493,45 @@ export const ProjectWorkspacePage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {members.map((m: any) => {
               const memberUserId = m.userId || m.id;
+              const fullName = m.fullName || m.user?.fullName || 'Unknown Member';
+              const empCode = m.employeeCode || m.user?.employeeCode;
+              const email = m.email || m.user?.email;
+              const avatarUrl = m.avatarUrl || m.user?.avatarUrl;
+              const systemRole = m.userRole || m.user?.role;
               return (
                 <div
                   key={m.id}
                   onClick={() => memberUserId && navigate(`/employees/${memberUserId}/360`)}
-                  className="glass-panel p-4 rounded-2xl flex items-center gap-3 hover:border-indigo-500/50 hover:bg-slate-800/40 cursor-pointer transition-all group"
+                  className="glass-panel p-4 rounded-2xl flex items-center gap-3.5 hover:border-indigo-500/50 hover:bg-slate-800/40 cursor-pointer transition-all group border border-slate-800"
                   title="Click to view 360° Profile"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-indigo-400 font-bold text-sm group-hover:scale-105 transition-transform">
-                    {m.user?.fullName?.charAt(0) || m.role?.charAt(0) || 'M'}
+                  <div className="group-hover:scale-105 transition-transform">
+                    <UserAvatar name={fullName} avatarUrl={avatarUrl} size="md" fallback="U" />
                   </div>
-                  <div>
-                    <div className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
-                      {m.user?.fullName || 'Project Member'}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                        {fullName}
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                        {m.role}
+                      </span>
                     </div>
-                    <div className="text-xs text-indigo-400 font-mono">{m.role}</div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {empCode && (
+                        <span className="font-mono text-[11px] text-slate-300 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/80">
+                          {empCode}
+                        </span>
+                      )}
+                      {systemRole && (
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          {formatSystemRole(systemRole)}
+                        </span>
+                      )}
+                    </div>
+                    {email && (
+                      <div className="text-[11px] text-slate-500 truncate">{email}</div>
+                    )}
                   </div>
                 </div>
               );

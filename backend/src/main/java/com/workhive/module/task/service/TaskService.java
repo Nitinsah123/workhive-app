@@ -21,7 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -69,27 +73,148 @@ public class TaskService {
         this.auditService = auditService;
     }
 
+    private boolean isPrivilegedRole(String role) {
+        return "TENANT_ADMIN".equalsIgnoreCase(role)
+                || "ADMIN".equalsIgnoreCase(role)
+                || "SUPER_ADMIN".equalsIgnoreCase(role)
+                || "MANAGER".equalsIgnoreCase(role);
+    }
+
     public Page<Task> getTasks(UUID projectId, UUID assigneeId, Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
-        if (projectId != null) {
-            return taskRepository.findByTenantIdAndProjectId(tenantId, projectId, pageable);
+        UUID currentUserId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+
+        Page<Task> page;
+        if (!isPrivilegedRole(role)) {
+            // Strict RBAC: EMPLOYEES only see tasks directly assigned to them
+            if (projectId != null) {
+                page = taskRepository.findByTenantIdAndProjectIdAndAssigneeId(tenantId, projectId, currentUserId, pageable);
+            } else {
+                page = taskRepository.findByTenantIdAndAssigneeId(tenantId, currentUserId, pageable);
+            }
+        } else {
+            // ADMIN / TENANT_ADMIN / MANAGER: full workload visibility across tenant/project
+            if (projectId != null && assigneeId != null) {
+                page = taskRepository.findByTenantIdAndProjectIdAndAssigneeId(tenantId, projectId, assigneeId, pageable);
+            } else if (projectId != null) {
+                page = taskRepository.findByTenantIdAndProjectId(tenantId, projectId, pageable);
+            } else if (assigneeId != null) {
+                page = taskRepository.findByTenantIdAndAssigneeId(tenantId, assigneeId, pageable);
+            } else {
+                page = taskRepository.findByTenantId(tenantId, pageable);
+            }
         }
-        if (assigneeId != null) {
-            return taskRepository.findByTenantIdAndAssigneeId(tenantId, assigneeId, pageable);
+
+        if (page != null && page.getContent() != null && !page.getContent().isEmpty()) {
+            enrichTasks(tenantId, page.getContent());
         }
-        return taskRepository.findByTenantId(tenantId, pageable);
+        return page;
     }
 
     public List<Task> getMyActiveTasks() {
         UUID tenantId = TenantContext.requireTenantId();
         UUID userId = TenantContext.requireUserId();
-        return taskRepository.findActiveTasksByUser(tenantId, userId);
+        List<Task> tasks = taskRepository.findActiveTasksByUser(tenantId, userId);
+        if (tasks != null && !tasks.isEmpty()) {
+            enrichTasks(tenantId, tasks);
+        }
+        return tasks;
     }
 
     public Task getTask(UUID id) {
         UUID tenantId = TenantContext.requireTenantId();
         return taskRepository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", "id", id));
+    }
+
+    public Task getTaskForCurrentUser(UUID id) {
+        Task task = getTask(id);
+        UUID currentUserId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+        if (!isPrivilegedRole(role)
+                && !currentUserId.equals(task.getAssigneeId())
+                && !currentUserId.equals(task.getCreatorId())
+                && !currentUserId.equals(task.getReviewerId())) {
+            throw new org.springframework.security.access.AccessDeniedException("You do not have permission to view this task");
+        }
+        enrichTask(task.getTenantId(), task);
+        return task;
+    }
+
+    public void enrichTask(UUID tenantId, Task task) {
+        if (task != null) {
+            enrichTasks(tenantId, List.of(task));
+        }
+    }
+
+    public void enrichTasks(UUID tenantId, List<Task> tasks) {
+        if (tasks == null || tasks.isEmpty() || tenantId == null) {
+            return;
+        }
+        Set<UUID> userIds = new HashSet<>();
+        Set<UUID> projectIds = new HashSet<>();
+        for (Task t : tasks) {
+            if (t.getAssigneeId() != null) userIds.add(t.getAssigneeId());
+            if (t.getCreatorId() != null) userIds.add(t.getCreatorId());
+            if (t.getReviewerId() != null) userIds.add(t.getReviewerId());
+            if (t.getProjectId() != null) projectIds.add(t.getProjectId());
+        }
+
+        Map<UUID, User> userMap = new HashMap<>();
+        if (userRepository != null && !userIds.isEmpty()) {
+            Iterable<User> users = userRepository.findAllById(userIds);
+            if (users != null) {
+                for (User u : users) {
+                    if (u != null && tenantId.equals(u.getTenantId())) {
+                        userMap.put(u.getId(), u);
+                    }
+                }
+            }
+        }
+
+        Map<UUID, Project> projectMap = new HashMap<>();
+        if (projectRepository != null && !projectIds.isEmpty()) {
+            Iterable<Project> projects = projectRepository.findAllById(projectIds);
+            if (projects != null) {
+                for (Project p : projects) {
+                    if (p != null && tenantId.equals(p.getTenantId())) {
+                        projectMap.put(p.getId(), p);
+                    }
+                }
+            }
+        }
+
+        for (Task t : tasks) {
+            if (t.getAssigneeId() != null) {
+                User assignee = userMap.get(t.getAssigneeId());
+                if (assignee != null) {
+                    t.setAssigneeName(assignee.getFullName());
+                    t.setAssigneeEmployeeCode(assignee.getEmployeeCode());
+                    t.setAssigneeAvatarUrl(assignee.getAvatarUrl());
+                }
+            }
+            if (t.getCreatorId() != null) {
+                User creator = userMap.get(t.getCreatorId());
+                if (creator != null) {
+                    t.setCreatorName(creator.getFullName());
+                    t.setCreatorEmployeeCode(creator.getEmployeeCode());
+                    t.setCreatorAvatarUrl(creator.getAvatarUrl());
+                }
+            }
+            if (t.getReviewerId() != null) {
+                User reviewer = userMap.get(t.getReviewerId());
+                if (reviewer != null) {
+                    t.setReviewerName(reviewer.getFullName());
+                }
+            }
+            if (t.getProjectId() != null) {
+                Project project = projectMap.get(t.getProjectId());
+                if (project != null) {
+                    t.setProjectName(project.getName());
+                }
+            }
+        }
     }
 
     @Transactional
@@ -162,6 +287,7 @@ public class TaskService {
             } catch (Exception ignored) {}
         }
 
+        enrichTask(tenantId, task);
         return task;
     }
 
@@ -224,6 +350,7 @@ public class TaskService {
         }
 
         auditService.log(tenantId, userId, "TASK_UPDATED", "TASK", task.getId(), null, null);
+        enrichTask(tenantId, task);
         return task;
     }
 
@@ -350,6 +477,7 @@ public class TaskService {
         }
 
         auditService.log(tenantId, userId, "TASK_STATUS_" + newStatus, "TASK", task.getId(), null, null);
+        enrichTask(tenantId, task);
         return task;
     }
 
@@ -415,6 +543,7 @@ public class TaskService {
                 "Submitted task for review with codebase: " + repoUrl, request.getWorkSummary(), null, null);
 
         auditService.log(tenantId, userId, "TASK_SUBMITTED_WITH_CODEBASE", "TASK", task.getId(), null, null);
+        enrichTask(tenantId, task);
         return task;
     }
 
@@ -480,6 +609,7 @@ public class TaskService {
                 "Reviewed task (" + decision + "): " + task.getTitle(), request.getComment(), null, null);
 
         auditService.log(tenantId, reviewerId, "TASK_REVIEW_" + decision, "TASK", task.getId(), null, null);
+        enrichTask(tenantId, task);
         return task;
     }
 

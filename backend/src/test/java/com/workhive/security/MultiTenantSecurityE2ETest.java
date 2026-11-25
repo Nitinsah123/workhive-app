@@ -143,8 +143,7 @@ class MultiTenantSecurityE2ETest {
 
     @Test
     void testStrictIsolation_TaskListingOnlyReturnsCurrentTenantData() {
-        TenantContext.setTenantId(TENANT_A);
-        TenantContext.setUserId(USER_A);
+        TenantContext.setContext(USER_A, TENANT_A, "TENANT_ADMIN");
 
         Task taskA = Task.builder().id(UUID.randomUUID()).tenantId(TENANT_A).title("Task A").build();
         when(taskRepository.findByTenantId(eq(TENANT_A), nullable(Pageable.class)))

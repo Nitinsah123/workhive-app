@@ -1202,7 +1202,9 @@ export const PeoplePage: React.FC = () => {
                     <div key={t.id} className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
                       <div className="space-y-1">
                         <div className="text-xs font-bold text-white">{t.title}</div>
-                        <div className="text-[10px] text-slate-400">Priority: <span className="text-indigo-400 font-semibold">{t.priority}</span> • Due: {t.dueDate || 'No date'}</div>
+                        <div className="text-[10px] text-slate-400">
+                          Assigned by: <span className="text-slate-200 font-semibold">{t.creatorName || 'System'}</span> • Priority: <span className="text-indigo-400 font-semibold">{t.priority}</span> • Due: {t.dueDate || 'No date'}
+                        </div>
                       </div>
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold border ${
                         t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :

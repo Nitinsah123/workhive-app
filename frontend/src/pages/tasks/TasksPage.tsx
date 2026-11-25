@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi } from '../../api/services';
+import { useAuthStore } from '../../store/authStore';
 import { Task } from '../../types';
 import { KanbanBoard } from './KanbanBoard';
 import { Modal } from '../../components/common/Modal';
+import { UserAvatar } from '../../components/common/UserAvatarBadge';
 import {
   CheckSquare,
   Columns,
@@ -33,6 +35,9 @@ import {
 
 export const TasksPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user: currentUser } = useAuthStore();
+  const isPrivileged = currentUser?.role === 'TENANT_ADMIN' || currentUser?.role === 'MANAGER';
+  const [taskScope, setTaskScope] = useState<'ALL' | 'MINE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'LIST' | 'KANBAN'>('KANBAN');
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -78,9 +83,15 @@ export const TasksPage: React.FC = () => {
 
   const queryClient = useQueryClient();
 
+  const effectiveScope = isPrivileged ? taskScope : 'MINE';
+
   const { data: tasksData, isLoading } = useQuery({
-    queryKey: ['tasks-all'],
-    queryFn: () => taskApi.getAll(),
+    queryKey: ['tasks-all', effectiveScope],
+    queryFn: () =>
+      taskApi.getAll(
+        undefined,
+        isPrivileged && taskScope === 'MINE' ? currentUser?.id : undefined
+      ),
   });
 
   const { data: projectsData } = useQuery({
@@ -290,7 +301,11 @@ export const TasksPage: React.FC = () => {
       (t.title && t.title.toLowerCase().includes(q)) ||
       (t.description && t.description.toLowerCase().includes(q)) ||
       (t.priority && t.priority.toLowerCase().includes(q)) ||
-      (t.status && t.status.toLowerCase().includes(q))
+      (t.status && t.status.toLowerCase().includes(q)) ||
+      (t.assigneeName && t.assigneeName.toLowerCase().includes(q)) ||
+      (t.creatorName && t.creatorName.toLowerCase().includes(q)) ||
+      (t.assigneeEmployeeCode && t.assigneeEmployeeCode.toLowerCase().includes(q)) ||
+      (t.projectName && t.projectName.toLowerCase().includes(q))
     );
   });
 
@@ -309,7 +324,33 @@ export const TasksPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Role-gated scope toggle: hidden from EMPLOYEE */}
+          {isPrivileged && (
+            <div className="p-1 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-1">
+              <button
+                onClick={() => setTaskScope('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  taskScope === 'ALL'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All Team Tasks
+              </button>
+              <button
+                onClick={() => setTaskScope('MINE')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  taskScope === 'MINE'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                My Tasks
+              </button>
+            </div>
+          )}
+
           {/* View Toggle */}
           <div className="p-1 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-1">
             <button
@@ -390,11 +431,13 @@ export const TasksPage: React.FC = () => {
         />
       ) : (
         /* List View */
-        <div className="glass-panel rounded-3xl overflow-hidden border border-slate-800">
-          <table className="w-full text-left text-sm text-slate-300">
+        <div className="glass-panel rounded-3xl overflow-x-auto border border-slate-800">
+          <table className="w-full text-left text-sm text-slate-300 min-w-[780px]">
             <thead className="bg-slate-900/80 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
               <tr>
                 <th className="px-6 py-4">Title</th>
+                <th className="px-6 py-4">Assigned To</th>
+                <th className="px-6 py-4">Assigned By</th>
                 <th className="px-6 py-4">Priority</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Due Date</th>
@@ -404,7 +447,7 @@ export const TasksPage: React.FC = () => {
             <tbody className="divide-y divide-slate-800/60">
               {filteredTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-10 text-center text-slate-500">
                     {searchQuery ? 'No tasks match your search filter.' : 'No tasks found. Create one above!'}
                   </td>
                 </tr>
@@ -418,7 +461,29 @@ export const TasksPage: React.FC = () => {
                     }}
                     className="hover:bg-slate-800/40 cursor-pointer transition-colors"
                   >
-                    <td className="px-6 py-4 font-semibold text-white">{task.title}</td>
+                    <td className="px-6 py-4 font-semibold text-white">
+                      <div>{task.title}</div>
+                      {task.projectName && (
+                        <div className="text-[11px] font-normal text-indigo-400 mt-0.5">{task.projectName}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <UserAvatar name={task.assigneeName} avatarUrl={task.assigneeAvatarUrl} size="sm" fallback="U" />
+                        <div>
+                          <div className="text-xs font-semibold text-white">{task.assigneeName || 'Unassigned'}</div>
+                          {task.assigneeEmployeeCode && (
+                            <div className="text-[10px] font-mono text-indigo-400">{task.assigneeEmployeeCode}</div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs font-medium text-slate-200">{task.creatorName || 'System'}</div>
+                      {task.creatorEmployeeCode && (
+                        <div className="text-[10px] font-mono text-slate-500">{task.creatorEmployeeCode}</div>
+                      )}
+                    </td>
                     <td className="px-6 py-4">
                       <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                         {task.priority}
@@ -551,6 +616,43 @@ export const TasksPage: React.FC = () => {
             </div>
 
             {/* Edit Mode Form */}
+            {!isEditingTask && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 flex items-center gap-3">
+                  <UserAvatar name={activeTask.assigneeName} avatarUrl={activeTask.assigneeAvatarUrl} size="sm" fallback="U" />
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Assigned To</div>
+                    <div className="text-xs font-bold text-white truncate">
+                      {activeTask.assigneeName || 'Unassigned'}
+                    </div>
+                    {activeTask.assigneeEmployeeCode && (
+                      <div className="text-[10px] font-mono text-indigo-400">{activeTask.assigneeEmployeeCode}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 flex items-center gap-3">
+                  <UserAvatar name={activeTask.creatorName} avatarUrl={activeTask.creatorAvatarUrl} size="sm" fallback="S" />
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Assigned By</div>
+                    <div className="text-xs font-bold text-white truncate">
+                      {activeTask.creatorName || 'System'}
+                    </div>
+                    {activeTask.creatorEmployeeCode && (
+                      <div className="text-[10px] font-mono text-slate-400">{activeTask.creatorEmployeeCode}</div>
+                    )}
+                  </div>
+                </div>
+
+                {activeTask.projectName && (
+                  <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col justify-center">
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Project</div>
+                    <div className="text-xs font-bold text-indigo-300 truncate">{activeTask.projectName}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {isEditingTask ? (
               <form onSubmit={handleSaveEditTask} className="space-y-4 p-4 rounded-2xl bg-slate-900/90 border border-slate-700">
                 {editTaskError && (

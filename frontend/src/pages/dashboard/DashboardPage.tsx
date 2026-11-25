@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -6,10 +6,10 @@ import {
   taskApi,
   attendanceApi,
   actionCenterApi,
-  activityApi,
   leaveApi,
 } from '../../api/services';
 import { StatCard } from '../../components/common/StatCard';
+import { UserAvatar } from '../../components/common/UserAvatarBadge';
 import {
   FolderKanban,
   CheckSquare,
@@ -32,6 +32,8 @@ export const DashboardPage: React.FC = () => {
   const queryClient = useQueryClient();
   const isAdmin = user?.role === 'TENANT_ADMIN';
   const isManager = user?.role === 'MANAGER';
+  const isPrivileged = isAdmin || isManager;
+  const [dashboardTaskScope, setDashboardTaskScope] = useState<'ALL' | 'MINE'>('ALL');
 
   // Admin/Manager Org Report
   const { data: orgReportData } = useQuery({
@@ -63,6 +65,13 @@ export const DashboardPage: React.FC = () => {
   const { data: myTasksData } = useQuery({
     queryKey: ['my-active-tasks'],
     queryFn: () => taskApi.getMyActive(),
+  });
+
+  // Admin / Manager team active tasks
+  const { data: teamTasksData } = useQuery({
+    queryKey: ['dashboard-team-active-tasks'],
+    queryFn: () => taskApi.getAll(),
+    enabled: isPrivileged,
   });
 
   // Leave balances
@@ -97,6 +106,14 @@ export const DashboardPage: React.FC = () => {
   const empReport = empReportData?.data;
   const todayAttendance = todayAttendanceData?.data;
   const myTasks = myTasksData?.data || [];
+  const teamActiveTasks = (teamTasksData?.data?.content || []).filter(
+    (t) =>
+      t.status !== 'COMPLETED' &&
+      t.status !== 'CANCELLED' &&
+      (t.status as string) !== 'DONE' &&
+      (t.status as string) !== 'ARCHIVED'
+  );
+  const displayedTasks = isPrivileged && dashboardTaskScope === 'ALL' ? teamActiveTasks : myTasks;
   const balances = balancesData?.data || [];
 
   return (
@@ -251,38 +268,75 @@ export const DashboardPage: React.FC = () => {
 
       {/* Two Column Layout: My Tasks & Quick Actions / Balances */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left 2 Cols: My Active Tasks */}
+        {/* Left 2 Cols: Role-Aware Active Tasks */}
         <div className="lg:col-span-2 space-y-6">
           <div className="glass-panel p-6 rounded-3xl">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-bold font-display text-white flex items-center gap-2">
-                <CheckSquare className="w-5 h-5 text-indigo-400" /> My Active Tasks
+                <CheckSquare className="w-5 h-5 text-indigo-400" />{' '}
+                {isPrivileged && dashboardTaskScope === 'ALL' ? 'All Team Active Tasks' : 'My Active Tasks'}
               </h3>
-              <Link to="/tasks" className="text-xs font-semibold text-indigo-400 hover:underline flex items-center gap-1">
-                View All Tasks <ArrowUpRight className="w-3.5 h-3.5" />
-              </Link>
+              <div className="flex items-center gap-3">
+                {isPrivileged && (
+                  <div className="p-0.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-0.5">
+                    <button
+                      onClick={() => setDashboardTaskScope('ALL')}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                        dashboardTaskScope === 'ALL'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      All Team Tasks
+                    </button>
+                    <button
+                      onClick={() => setDashboardTaskScope('MINE')}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                        dashboardTaskScope === 'MINE'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      My Tasks
+                    </button>
+                  </div>
+                )}
+                <Link to="/tasks" className="text-xs font-semibold text-indigo-400 hover:underline flex items-center gap-1">
+                  View All Tasks <ArrowUpRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
 
-            {myTasks.length === 0 ? (
+            {displayedTasks.length === 0 ? (
               <div className="text-center py-10 text-slate-500 text-sm">
                 No active tasks assigned. Great job!
               </div>
             ) : (
               <div className="space-y-3">
-                {myTasks.slice(0, 5).map((task) => (
+                {displayedTasks.slice(0, 5).map((task) => (
                   <div
                     key={task.id}
-                    className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between hover:border-slate-700 transition-colors"
+                    onClick={() => navigate(`/tasks?taskId=${task.id}`)}
+                    className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between gap-3 hover:border-indigo-500/40 cursor-pointer transition-colors"
                   >
-                    <div className="space-y-1">
-                      <div className="text-sm font-bold text-slate-200">{task.title}</div>
-                      <div className="text-xs text-slate-500 flex items-center gap-3">
-                        <span className="font-mono text-slate-400">{task.priority} Priority</span>
-                        {task.dueDate && <span>Due {task.dueDate}</span>}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <UserAvatar name={task.assigneeName} avatarUrl={task.assigneeAvatarUrl} size="sm" fallback="U" />
+                      <div className="space-y-1 min-w-0">
+                        <div className="text-sm font-bold text-slate-200 truncate">{task.title}</div>
+                        <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                          <span>
+                            Assigned to: <strong className="text-slate-200">{task.assigneeName || 'Unassigned'}</strong>
+                          </span>
+                          <span>
+                            Assigned by: <strong className="text-slate-300">{task.creatorName || 'System'}</strong>
+                          </span>
+                          <span className="font-mono text-slate-400">{task.priority} Priority</span>
+                          {task.dueDate && <span>Due {task.dueDate}</span>}
+                        </div>
                       </div>
                     </div>
                     <span
-                      className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${
+                      className={`text-xs px-2.5 py-1 rounded-lg font-semibold border shrink-0 ${
                         task.status === 'IN_PROGRESS'
                           ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                           : task.status === 'REVIEW'

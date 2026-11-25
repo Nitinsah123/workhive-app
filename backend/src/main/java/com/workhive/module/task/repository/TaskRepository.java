@@ -17,6 +17,7 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
     Optional<Task> findByIdAndTenantId(UUID id, UUID tenantId);
     Page<Task> findByTenantIdAndProjectId(UUID tenantId, UUID projectId, Pageable pageable);
     Page<Task> findByTenantIdAndAssigneeId(UUID tenantId, UUID assigneeId, Pageable pageable);
+    Page<Task> findByTenantIdAndProjectIdAndAssigneeId(UUID tenantId, UUID projectId, UUID assigneeId, Pageable pageable);
     List<Task> findByTenantIdAndAssigneeId(UUID tenantId, UUID assigneeId);
     long countByTenantIdAndAssigneeId(UUID tenantId, UUID assigneeId);
     List<Task> findByTenantIdAndProjectIdAndStatus(UUID tenantId, UUID projectId, String status);
@@ -30,6 +31,10 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
     @Query("SELECT t FROM Task t WHERE t.tenantId = :tenantId AND " +
            "(LOWER(t.title) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(t.description) LIKE LOWER(CONCAT('%', :q, '%')))")
     Page<Task> searchByTenant(@Param("tenantId") UUID tenantId, @Param("q") String query, Pageable pageable);
+
+    @Query("SELECT t FROM Task t WHERE t.tenantId = :tenantId AND t.assigneeId = :assigneeId AND " +
+           "(LOWER(t.title) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(t.description) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<Task> searchByTenantAndAssignee(@Param("tenantId") UUID tenantId, @Param("assigneeId") UUID assigneeId, @Param("q") String query, Pageable pageable);
 
     @Query("SELECT t.status, COUNT(t) FROM Task t WHERE t.tenantId = :tenantId AND t.projectId = :projectId GROUP BY t.status")
     List<Object[]> countByProjectGroupByStatus(@Param("tenantId") UUID tenantId, @Param("projectId") UUID projectId);

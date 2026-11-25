@@ -3,6 +3,7 @@ package com.workhive.module.project.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -56,5 +57,37 @@ public class ProjectDtos {
         private long inProgressTasks;
         private long reviewTasks;
         private long overdueTasks;
+    }
+
+    @Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class ProjectMemberUserDto {
+        private UUID id;
+        private String fullName;
+        private String employeeCode;
+        private String email;
+        private String role;
+        private String avatarUrl;
+    }
+
+    @Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class ProjectMemberDTO {
+        private UUID id;
+        private UUID projectId;
+        private UUID userId;
+        private UUID tenantId;
+        private String role;
+        private Instant addedAt;
+        private String fullName;
+        private String employeeCode;
+        private String email;
+        private String userRole;
+        private String avatarUrl;
+        private ProjectMemberUserDto user;
     }
 }

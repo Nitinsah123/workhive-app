@@ -3,9 +3,11 @@ package com.workhive.module.project.controller;
 import com.workhive.module.project.dto.ProjectDtos.*;
 import com.workhive.module.project.entity.Milestone;
 import com.workhive.module.project.entity.Project;
-import com.workhive.module.project.entity.ProjectMember;
 import com.workhive.module.project.service.ProjectService;
+import com.workhive.module.task.entity.Task;
+import com.workhive.module.task.service.TaskService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -22,9 +24,16 @@ import java.util.UUID;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final TaskService taskService;
+
+    @Autowired
+    public ProjectController(ProjectService projectService, @Autowired(required = false) TaskService taskService) {
+        this.projectService = projectService;
+        this.taskService = taskService;
+    }
 
     public ProjectController(ProjectService projectService) {
-        this.projectService = projectService;
+        this(projectService, null);
     }
 
     @GetMapping
@@ -61,8 +70,20 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}/members")
-    public ResponseEntity<List<ProjectMember>> getMembers(@PathVariable UUID id) {
+    public ResponseEntity<List<ProjectMemberDTO>> getMembers(@PathVariable UUID id) {
         return ResponseEntity.ok(projectService.getProjectMembers(id));
+    }
+
+    @GetMapping("/{id}/tasks")
+    public ResponseEntity<Page<Task>> getProjectTasks(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID assigneeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+        if (taskService == null) {
+            return ResponseEntity.ok(Page.empty());
+        }
+        return ResponseEntity.ok(taskService.getTasks(id, assigneeId, PageRequest.of(page, size)));
     }
 
     @PostMapping("/{id}/members")

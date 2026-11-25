@@ -33,6 +33,9 @@ public class ProjectService {
     private final WorkActivityService workActivityService;
     private final AuditService auditService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.workhive.module.user.repository.UserRepository userRepository;
+
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
 
@@ -209,9 +212,49 @@ public class ProjectService {
         auditService.log(tenantId, userId, "PROJECT_PERMANENTLY_DELETED", "PROJECT", id, null, null);
     }
 
-    public List<ProjectMember> getProjectMembers(UUID projectId) {
+    public List<ProjectMemberDTO> getProjectMembers(UUID projectId) {
         UUID tenantId = TenantContext.requireTenantId();
-        return projectMemberRepository.findByProjectIdAndTenantId(projectId, tenantId);
+        List<ProjectMember> members = projectMemberRepository.findByProjectIdAndTenantId(projectId, tenantId);
+        if (members.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> userIds = members.stream().map(ProjectMember::getUserId).distinct().toList();
+        java.util.Map<UUID, com.workhive.module.user.entity.User> userMap = new java.util.HashMap<>();
+        if (userRepository != null && !userIds.isEmpty()) {
+            Iterable<com.workhive.module.user.entity.User> users = userRepository.findAllById(userIds);
+            if (users != null) {
+                for (com.workhive.module.user.entity.User u : users) {
+                    if (u != null && tenantId.equals(u.getTenantId())) {
+                        userMap.put(u.getId(), u);
+                    }
+                }
+            }
+        }
+        return members.stream().map(m -> {
+            com.workhive.module.user.entity.User u = userMap.get(m.getUserId());
+            ProjectMemberUserDto userDto = u != null ? ProjectMemberUserDto.builder()
+                    .id(u.getId())
+                    .fullName(u.getFullName())
+                    .employeeCode(u.getEmployeeCode())
+                    .email(u.getEmail())
+                    .role(u.getRole())
+                    .avatarUrl(u.getAvatarUrl())
+                    .build() : null;
+            return ProjectMemberDTO.builder()
+                    .id(m.getId())
+                    .projectId(m.getProjectId())
+                    .userId(m.getUserId())
+                    .tenantId(m.getTenantId())
+                    .role(m.getRole())
+                    .addedAt(m.getAddedAt())
+                    .fullName(u != null ? u.getFullName() : null)
+                    .employeeCode(u != null ? u.getEmployeeCode() : null)
+                    .email(u != null ? u.getEmail() : null)
+                    .userRole(u != null ? u.getRole() : null)
+                    .avatarUrl(u != null ? u.getAvatarUrl() : null)
+                    .user(userDto)
+                    .build();
+        }).toList();
     }
 
     @Transactional

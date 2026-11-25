@@ -31,6 +31,9 @@ public class SearchService {
     private final DepartmentRepository departmentRepository;
     private final TeamRepository teamRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.workhive.module.task.service.TaskService taskService;
+
     public SearchService(UserRepository userRepository,
                          ProjectRepository projectRepository,
                          TaskRepository taskRepository,
@@ -47,6 +50,12 @@ public class SearchService {
 
     public Map<String, Object> globalSearch(String query) {
         UUID tenantId = TenantContext.requireTenantId();
+        UUID userId = TenantContext.requireUserId();
+        String role = TenantContext.getRole();
+        boolean isPrivileged = "TENANT_ADMIN".equalsIgnoreCase(role)
+                || "ADMIN".equalsIgnoreCase(role)
+                || "SUPER_ADMIN".equalsIgnoreCase(role)
+                || "MANAGER".equalsIgnoreCase(role);
         Map<String, Object> results = new HashMap<>();
 
         if (query == null || query.isBlank()) {
@@ -57,7 +66,12 @@ public class SearchService {
 
         List<User> users = userRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
         List<Project> projects = projectRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
-        List<Task> tasks = taskRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
+        List<Task> tasks = isPrivileged
+                ? taskRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent()
+                : taskRepository.searchByTenantAndAssignee(tenantId, userId, q, PageRequest.of(0, 5)).getContent();
+        if (taskService != null && !tasks.isEmpty()) {
+            taskService.enrichTasks(tenantId, tasks);
+        }
         List<Document> documents = documentRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
         List<Department> departments = departmentRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();
         List<Team> teams = teamRepository.searchByTenant(tenantId, q, PageRequest.of(0, 5)).getContent();

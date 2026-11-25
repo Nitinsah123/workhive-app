@@ -1,6 +1,7 @@
 import React from 'react';
 import { Task } from '../../types';
-import { Clock, CheckSquare, ArrowRight, Play, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Clock, CheckCircle2 } from 'lucide-react';
+import { UserAvatar } from '../../components/common/UserAvatarBadge';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -62,6 +63,30 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   {task.description && (
                     <p className="text-xs text-slate-400 line-clamp-2">{task.description}</p>
                   )}
+
+                  {/* Assignee & Assigner Attribution */}
+                  <div className="pt-2 space-y-1.5 text-[11px]">
+                    <div className="flex items-center gap-2 text-slate-200">
+                      <UserAvatar
+                        name={task.assigneeName}
+                        avatarUrl={task.assigneeAvatarUrl}
+                        size="xs"
+                        fallback="U"
+                      />
+                      <span className="truncate">
+                        <span className="text-slate-400">Assigned to: </span>
+                        <strong className="text-white font-semibold">
+                          {task.assigneeName || 'Unassigned'}
+                        </strong>
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 pl-7 truncate">
+                      Assigned by:{' '}
+                      <span className="text-slate-300 font-medium">
+                        {task.creatorName || 'System'}
+                      </span>
+                    </div>
+                  </div>
 
                   {/* Quick Action Progression Buttons */}
                   <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between">

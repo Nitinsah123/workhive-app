@@ -41,7 +41,7 @@ public class TaskController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Task> getTask(@PathVariable UUID id) {
-        return ResponseEntity.ok(taskService.getTask(id));
+        return ResponseEntity.ok(taskService.getTaskForCurrentUser(id));
     }
 
     @PostMapping

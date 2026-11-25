@@ -67,6 +67,11 @@ export const projectApi = {
   update: (id: string, data: any) => api.put<Project>(`/projects/${id}`, data),
   delete: (id: string) => api.delete(`/projects/${id}`),
   getMembers: (id: string) => api.get<any[]>(`/projects/${id}/members`),
+  getTasks: (id: string, assigneeId?: string) => {
+    let url = `/projects/${id}/tasks?size=100`;
+    if (assigneeId) url += `&assigneeId=${assigneeId}`;
+    return api.get<{ content: Task[] }>(url);
+  },
   addMember: (id: string, userId: string, role = 'MEMBER') => api.post(`/projects/${id}/members?userId=${userId}&role=${role}`),
   removeMember: (id: string, userId: string) => api.delete(`/projects/${id}/members/${userId}`),
   getMilestones: (id: string) => api.get<Milestone[]>(`/projects/${id}/milestones`),
